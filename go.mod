@@ -19,7 +19,7 @@ require (
 	github.com/projectdiscovery/networkpolicy v0.0.2-0.20220525172507-b844eafc878d
 	github.com/remeh/sizedwaitgroup v1.0.0
 	go.uber.org/ratelimit v0.2.0
-	golang.org/x/net v0.6.0
+	golang.org/x/net v0.7.0
 	golang.org/x/sys v0.5.0
 )
 
@@ -186,7 +186,6 @@ require (
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.1.0 // indirect
-	github.com/gobysec/Goby v0.0.0-20211122111916-0257c6d67d1e // indirect
 	github.com/gofrs/uuid v4.3.0+incompatible // indirect
 	github.com/gogf/gf v1.16.9 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
