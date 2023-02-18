@@ -1,0 +1,23 @@
+env:
+  - GO111MODULE=on
+before:
+  hooks:
+    - go mod tidy
+project_name: goscan
+builds:
+  - id: goscan-linux
+    ldflags:
+      - -s -w
+    binary: goscan
+    env:
+      - CGO_ENABLED=1
+    main: main.go
+    goos:
+      - linux
+    goarch:
+      - arm64
+archives:
+- format: zip
+
+checksum:
+  name_template: "{{ .ProjectName }}-linux-checksums.txt"
