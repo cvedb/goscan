@@ -24,7 +24,7 @@ const (
 	Httpx     ESaveType = "httpx"
 	Hydra     ESaveType = "hydra"
 	Nmap      ESaveType = "nmap"
-	goscan    ESaveType = "goscan"
+	Goscan    ESaveType = "goscan"
 	Subfinder ESaveType = "subfinder"
 )
 
