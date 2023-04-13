@@ -34,10 +34,10 @@ func checkSmuggling4Poc(ClTePayload *[]string, nTimes int, r1 *Smuggling, r *soc
 			// send result
 			util.SendAnyData(&util.SimpleVulResult{
 				Url:     r.UrlPath,
-				VulKind: string(util.goscan),
+				VulKind: string(util.Goscan),
 				VulType: (*r1).GetVulType(),
 				Payload: x,
-			}, util.goscan)
+			}, util.Goscan)
 			break
 		}
 	}

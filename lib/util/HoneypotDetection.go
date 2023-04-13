@@ -21,7 +21,7 @@ var ipCIDS = regexp.MustCompile("^(\\d+\\.){3}\\d+\\/\\d+$")
 func CheckHoneyportDetection4HeaderServer(server, szUrl string) bool {
 	if 50 < len(server) || 3 < len(strings.Split(server, ",")) {
 		hdCache.Store(szUrl, true)
-		SendLog(szUrl, string(goscan), "Honeypot found", "")
+		SendLog(szUrl, string(Goscan), "Honeypot found", "")
 		return true
 	}
 	return false

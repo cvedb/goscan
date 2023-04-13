@@ -125,7 +125,7 @@ func MS17010(ip string, timeout time.Duration) {
 		if reply[34] == 0x51 {
 			// CVE-2017-0143	CVE-2017-0144	CVE-2017-0145	CVE-2017-0146	CVE-2017-0147	CVE-2017-0148
 			s001 := fmt.Sprintf("ms17-010:DOUBLEPULSAR SMB IMPLANT in %s\n", ip)
-			util.SendAnyData(&s001, util.goscan)
+			util.SendAnyData(&s001, util.Goscan)
 			fmt.Printf("DOUBLEPULSAR SMB IMPLANT in %s\n", ip)
 		}
 
