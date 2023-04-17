@@ -1,7 +1,7 @@
 # .github/build/linux.yml
 
 # The main GoReleaser configuration
-project_name: <YOUR_PROJECT_NAME> # Replace with the name of your project
+project_name: goscan # Replace with the name of your project
 project_dist: dist
 project_homepage: https://github.com/w3security/goscan # Replace with your GitHub username and repository name
 project_license: MIT # Replace with your project's license
