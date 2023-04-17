@@ -192,9 +192,5 @@ more see: <a href=https://github.com/w3security/goscan/discussions>discussions</
 
 ## 💖Star
 [![Stargazers over time](https://starchart.cc/w3security/goscan.svg)](https://starchart.cc/w3security/goscan)
-
-# Donation
-| Wechat Pay | AliPay | Paypal | BTC Pay |BCH Pay |
-| --- | --- | --- | --- | --- |
-|<img src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/wc.png>|<img width=166 src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/zfb.png>|[paypal](https://www.paypal.me/pwned2019) **miracletalent@gmail.com**|<img width=166 src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/BTC.png>|<img width=166 src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/BCH.jpg>|
+(https://www.paypal.me/pwned2019) **miracletalent@gmail.com**|<img width=166 src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/BTC.png>|<img width=166 src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/BCH.jpg>|
 
