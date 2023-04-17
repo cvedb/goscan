@@ -190,12 +190,6 @@ more see: <a href=https://github.com/w3security/goscan/discussions>discussions</
 - 2022-06-07 添加相似度算法来检测 404
 - 2022-06-07 增加http url列表精准扫描参数，根据环境变量UrlPrecise=true开启
 
-# Communication group (WeChat, QQ，Tg)
-| Wechat | Or | QQchat | Or | Tg |
-| --- |--- |--- |--- |--- |
-|<img width=166 src=https://github.com/w3security/goscan/blob/main/static/wcq.JPG>||<img width=166 src=https://github.com/w3security/goscan/blob/main/static/qqc.jpg>||<img width=166 src=https://github.com/w3security/goscan/blob/main/static/tg.jpg>|
-
-
 ## 💖Star
 [![Stargazers over time](https://starchart.cc/w3security/goscan.svg)](https://starchart.cc/w3security/goscan)
 
