@@ -1,36 +1,19 @@
 # .github/build/linux.yml
 
-# The main GoReleaser configuration
-project_name: goscan # Replace with the name of your project
-project_dist: dist
-project_homepage: https://github.com/w3security/goscan # Replace with your GitHub username and repository name
-project_license: MIT # Replace with your project's license
+# Build settings
+builds:
+  - id: linux
+    goos: linux
+    goarch: amd64
+    main: ./cmd/myapp
+    binary: myapp
+    archive:
+      format: tar.gz
+    env:
+      - CGO_ENABLED=0
 
-# The build section for building the release binaries
-build:
-  binary: goscan # Replace with the name of your binary
-  goos:
-    - linux # Build for Linux
-  goarch:
-    - amd64 # Build for x86-64 architecture
-  ldflags: -s -w # Additional linker flags, if required
-  main: <YOUR_MAIN_PACKAGE> # Replace with the main package of your Go application
-  hooks: # Hooks for custom build steps, if required
-    post: # Post-build hooks
-      - go mod tidy # Example of a post-build hook
-
-# The archive section for creating the release archive
-archive:
-  format: tar.gz # Use tar.gz format for the release archive
-
-# The release section for creating the GitHub release
+# Release settings
 release:
   github:
-    owner: cyberoslab # Replace with your GitHub username
-    name: goscan # Replace with your GitHub repository name
-    token: ${{ secrets.GITHUB_TOKEN }} # GitHub token for authentication, should be stored as a secret
-
-# The artifacts section for uploading additional artifacts
-artifacts:
-  - path: ./ # Replace with the path to your additional artifacts
-    name: linux # Replace with the name of your additional artifacts
+    owner: w3security
+    name: goscan
