@@ -2,10 +2,6 @@ package pocs_go
 
 import (
 	"fmt"
-	"log"
-	"net/url"
-	"strings"
-
 	"github.com/w3security/goscan/brute"
 	"github.com/w3security/goscan/lib/Smuggling"
 	"github.com/w3security/goscan/lib/util"
@@ -32,6 +28,9 @@ import (
 	"github.com/w3security/goscan/pocs_go/weblogic"
 	"github.com/w3security/goscan/pocs_go/zabbix"
 	"github.com/w3security/goscan/pocs_go/zentao"
+	"log"
+	"net/url"
+	"strings"
 )
 
 // 需优化：相同都目标，相同都检测只做一次
@@ -301,7 +300,7 @@ func POCcheck(wappalyzertechnologies []string, URL string, finalURL string, chec
 	}
 	// 发送结果
 	if 0 < len(technologies) {
-		util.SendAnyData(&map[string]interface{}{"Urls": []string{URL, finalURL}, "technologies": technologies}, util.Goscan)
+		util.SendAnyData(&map[string]interface{}{"Urls": []string{URL, finalURL}, "technologies": technologies}, util.goscan)
 	}
 	return technologies
 }
