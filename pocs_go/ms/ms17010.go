@@ -108,7 +108,7 @@ func MS17010(ip string, timeout time.Duration) {
 		//if runtime.GOOS=="windows" {fmt.Printf("%s\tMS17-010\t(%s)\n", ip, os)
 		//} else{fmt.Printf("\033[33m%s\tMS17-010\t(%s)\033[0m\n", ip, os)}
 		//color.Magenta("%s\tMS17-010\t(%s)\n", ip, os)
-		util.SendAnyData(&[]string{ip, "MS17-010", os}, util.goscan)
+		util.SendAnyData(&[]string{ip, "MS17-010", os}, util.Scan4all)
 		log.Print(ip + "\tMS17-010\t" + os + "\n")
 		// detect present of DOUBLEPULSAR SMB implant
 		trans2SessionSetupRequest[28] = treeID[0]
@@ -125,7 +125,7 @@ func MS17010(ip string, timeout time.Duration) {
 		if reply[34] == 0x51 {
 			// CVE-2017-0143	CVE-2017-0144	CVE-2017-0145	CVE-2017-0146	CVE-2017-0147	CVE-2017-0148
 			s001 := fmt.Sprintf("ms17-010:DOUBLEPULSAR SMB IMPLANT in %s\n", ip)
-			util.SendAnyData(&s001, util.Goscan)
+			util.SendAnyData(&s001, util.Scan4all)
 			fmt.Printf("DOUBLEPULSAR SMB IMPLANT in %s\n", ip)
 		}
 
