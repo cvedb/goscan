@@ -1,38 +1,36 @@
 # .github/build/linux.yml
 
-# Name of the job
-name: Build Linux
+# The main GoReleaser configuration
+project_name: <YOUR_PROJECT_NAME> # Replace with the name of your project
+project_dist: dist
+project_homepage: https://github.com/w3security/goscan # Replace with your GitHub username and repository name
+project_license: MIT # Replace with your project's license
 
-# The trigger for the job
-on:
-  push:
-    branches:
-      - main # replace with the name of your main branch
-  pull_request:
-    branches:
-      - main # replace with the name of your main branch
+# The build section for building the release binaries
+build:
+  binary: goscan # Replace with the name of your binary
+  goos:
+    - linux # Build for Linux
+  goarch:
+    - amd64 # Build for x86-64 architecture
+  ldflags: -s -w # Additional linker flags, if required
+  main: <YOUR_MAIN_PACKAGE> # Replace with the main package of your Go application
+  hooks: # Hooks for custom build steps, if required
+    post: # Post-build hooks
+      - go mod tidy # Example of a post-build hook
 
-# The steps to be executed in the job
-jobs:
-  build:
-    runs-on: ubuntu-latest # The operating system to run the job on
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2 # Action to checkout the code from the repository
-        
-      - name: Set up Go
-        uses: actions/setup-go@v2 # Action to set up the Go environment
-        with:
-          go-version: 1.18 # Specify the version of Go to use
-        
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libpcap-dev # Install dependencies, replace with your own dependencies
-        
-      - name: Run GoReleaser
-        run: |
-          go get github.com/goreleaser/goreleaser # Install GoReleaser
-          go install github.com/goreleaser/goreleaser@latest # Update GoReleaser to the latest version
-          goreleaser release --rm-dist # Run GoReleaser to create the release binaries
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Set the GITHUB_TOKEN environment variable for authentication with GitHub
+# The archive section for creating the release archive
+archive:
+  format: tar.gz # Use tar.gz format for the release archive
+
+# The release section for creating the GitHub release
+release:
+  github:
+    owner: cyberoslab # Replace with your GitHub username
+    name: goscan # Replace with your GitHub repository name
+    token: ${{ secrets.GITHUB_TOKEN }} # GitHub token for authentication, should be stored as a secret
+
+# The artifacts section for uploading additional artifacts
+artifacts:
+  - path: ./ # Replace with the path to your additional artifacts
+    name: linux # Replace with the name of your additional artifacts
