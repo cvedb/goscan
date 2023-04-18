@@ -175,7 +175,6 @@ func (p *Process) CmdlineWithContext(ctx context.Context) (string, error) {
 func (p *Process) NumThreadsWithContext(ctx context.Context) (int32, error) {
 	const tiSize = C.sizeof_struct_proc_taskinfo
 	ti := (*C.struct_proc_taskinfo)(C.malloc(tiSize))
-	defer C.free(unsafe.Pointer(ti))
 
 	_, err := C.proc_pidinfo(C.int(p.Pid), C.PROC_PIDTASKINFO, 0, unsafe.Pointer(ti), tiSize)
 	if err != nil {
@@ -188,7 +187,6 @@ func (p *Process) NumThreadsWithContext(ctx context.Context) (int32, error) {
 func (p *Process) TimesWithContext(ctx context.Context) (*cpu.TimesStat, error) {
 	const tiSize = C.sizeof_struct_proc_taskinfo
 	ti := (*C.struct_proc_taskinfo)(C.malloc(tiSize))
-	defer C.free(unsafe.Pointer(ti))
 
 	_, err := C.proc_pidinfo(C.int(p.Pid), C.PROC_PIDTASKINFO, 0, unsafe.Pointer(ti), tiSize)
 	if err != nil {
@@ -206,7 +204,6 @@ func (p *Process) TimesWithContext(ctx context.Context) (*cpu.TimesStat, error) 
 func (p *Process) MemoryInfoWithContext(ctx context.Context) (*MemoryInfoStat, error) {
 	const tiSize = C.sizeof_struct_proc_taskinfo
 	ti := (*C.struct_proc_taskinfo)(C.malloc(tiSize))
-	defer C.free(unsafe.Pointer(ti))
 
 	_, err := C.proc_pidinfo(C.int(p.Pid), C.PROC_PIDTASKINFO, 0, unsafe.Pointer(ti), tiSize)
 	if err != nil {

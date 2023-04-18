@@ -1,15 +1,13 @@
 package cache
 
-import (
-	"time"
-)
+import "time"
 
 type janitor struct {
 	Interval time.Duration
-	stop     chan struct{}
+	stop     chan bool
 }
 
-func (j *janitor) Run(c *cacheMemory) {
+func (j *janitor) Run(c *CacheMemory) {
 	ticker := time.NewTicker(j.Interval)
 	for {
 		select {
@@ -22,14 +20,14 @@ func (j *janitor) Run(c *cacheMemory) {
 	}
 }
 
-func stopJanitor(c *cacheMemory) {
-	c.janitor.stop <- struct{}{}
+func stopJanitor(c *CacheMemory) {
+	c.janitor.stop <- true
 }
 
-func runJanitor(c *cacheMemory, ci time.Duration) {
+func runJanitor(c *CacheMemory, ci time.Duration) {
 	j := &janitor{
 		Interval: ci,
-		stop:     make(chan struct{}),
+		stop:     make(chan bool),
 	}
 	c.janitor = j
 	go j.Run(c)

@@ -16,7 +16,7 @@ type PayloadGenerator struct {
 }
 
 // New creates a new generator structure for payload generation
-func New(payloads map[string]interface{}, attackType AttackType, templatePath, templateDirectory string, sandbox bool, catalog catalog.Catalog, customAttackType string) (*PayloadGenerator, error) {
+func New(payloads map[string]interface{}, attackType AttackType, templatePath string, catalog catalog.Catalog) (*PayloadGenerator, error) {
 	if attackType.String() == "" {
 		attackType = BatteringRamAttack
 	}
@@ -42,20 +42,13 @@ func New(payloads map[string]interface{}, attackType AttackType, templatePath, t
 		return nil, err
 	}
 
-	compiled, err := generator.loadPayloads(payloadsFinal, templatePath, templateDirectory, sandbox)
+	compiled, err := generator.loadPayloads(payloadsFinal)
 	if err != nil {
 		return nil, err
 	}
 	generator.Type = attackType
 	generator.payloads = compiled
 
-	if customAttackType != "" {
-		attackTypeNew, err := toAttackType(customAttackType)
-		if err != nil {
-			return nil, errors.Wrap(err, "could not parse custom attack-type")
-		}
-		generator.Type = attackTypeNew
-	}
 	// Validate the batteringram payload set
 	if attackType == BatteringRamAttack {
 		if len(payloads) != 1 {

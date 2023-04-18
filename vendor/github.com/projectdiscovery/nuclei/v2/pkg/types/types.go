@@ -3,10 +3,10 @@ package types
 import (
 	"time"
 
+	"github.com/projectdiscovery/fileutil"
 	"github.com/projectdiscovery/goflags"
 	"github.com/projectdiscovery/nuclei/v2/pkg/model/types/severity"
 	"github.com/projectdiscovery/nuclei/v2/pkg/templates/types"
-	fileutil "github.com/projectdiscovery/utils/file"
 )
 
 // Options contains the configuration options for nuclei scanner.
@@ -14,45 +14,47 @@ type Options struct {
 	// Tags contains a list of tags to execute templates for. Multiple paths
 	// can be specified with -l flag and -tags can be used in combination with
 	// the -l flag.
-	Tags goflags.StringSlice
+	Tags goflags.FileNormalizedStringSlice
 	// ExcludeTags is the list of tags to exclude
-	ExcludeTags goflags.StringSlice
+	ExcludeTags goflags.FileNormalizedStringSlice
 	// Workflows specifies any workflows to run by nuclei
-	Workflows goflags.StringSlice
+	Workflows goflags.FileOriginalNormalizedStringSlice
 	// WorkflowURLs specifies URLs to a list of workflows to use
-	WorkflowURLs goflags.StringSlice
+	WorkflowURLs goflags.FileOriginalNormalizedStringSlice
 	// Templates specifies the template/templates to use
-	Templates goflags.StringSlice
+	Templates goflags.FileOriginalNormalizedStringSlice
 	// TemplateURLs specifies URLs to a list of templates to use
-	TemplateURLs goflags.StringSlice
+	TemplateURLs goflags.FileOriginalNormalizedStringSlice
 	// RemoteTemplates specifies list of allowed URLs to load remote templates from
 	RemoteTemplateDomainList goflags.StringSlice
 	// 	ExcludedTemplates  specifies the template/templates to exclude
-	ExcludedTemplates goflags.StringSlice
+	ExcludedTemplates goflags.FileOriginalNormalizedStringSlice
 	// ExcludeMatchers is a list of matchers to exclude processing
-	ExcludeMatchers goflags.StringSlice
+	ExcludeMatchers goflags.FileCommaSeparatedStringSlice
 	// CustomHeaders is the list of custom global headers to send with each request.
-	CustomHeaders goflags.StringSlice
+	CustomHeaders goflags.FileStringSlice
 	// Vars is the list of custom global vars
 	Vars goflags.RuntimeMap
+	// vars to use as iterative payload
+	varsPayload map[string]interface{}
 	// Severities filters templates based on their severity and only run the matching ones.
 	Severities severity.Severities
 	// ExcludeSeverities specifies severities to exclude
 	ExcludeSeverities severity.Severities
 	// Authors filters templates based on their author and only run the matching ones.
-	Authors goflags.StringSlice
+	Authors goflags.FileNormalizedStringSlice
 	// Protocols contains the protocols to be allowed executed
 	Protocols types.ProtocolTypes
 	// ExcludeProtocols contains protocols to not be executed
 	ExcludeProtocols types.ProtocolTypes
 	// IncludeTags includes specified tags to be run even while being in denylist
-	IncludeTags goflags.StringSlice
+	IncludeTags goflags.FileNormalizedStringSlice
 	// IncludeTemplates includes specified templates to be run even while being in denylist
-	IncludeTemplates goflags.StringSlice
+	IncludeTemplates goflags.FileOriginalNormalizedStringSlice
 	// IncludeIds includes specified ids to be run even while being in denylist
-	IncludeIds goflags.StringSlice
+	IncludeIds goflags.FileNormalizedStringSlice
 	// ExcludeIds contains templates ids to not be executed
-	ExcludeIds goflags.StringSlice
+	ExcludeIds goflags.FileNormalizedStringSlice
 
 	InternalResolversList []string // normalized from resolvers flag as well as file provided.
 	// ProjectPath allows nuclei to use a user defined project folder
@@ -71,10 +73,8 @@ type Options struct {
 	Output string
 	// ProxyInternal requests
 	ProxyInternal bool
-	// Show all supported DSL signatures
-	ListDslSignatures bool
 	// List of HTTP(s)/SOCKS5 proxy to use (comma separated or file input)
-	Proxy goflags.StringSlice
+	Proxy goflags.NormalizedOriginalStringSlice
 	// TemplatesDirectory is the directory to use for storing templates
 	TemplatesDirectory string
 	// TraceLogFile specifies a file to write with the trace of all requests
@@ -89,48 +89,6 @@ type Options struct {
 	MarkdownExportDirectory string
 	// SarifExport is the file to export sarif output format to
 	SarifExport string
-	// CloudURL is the URL for the nuclei cloud endpoint
-	CloudURL string
-	// CloudAPIKey is the api-key for the nuclei cloud endpoint
-	CloudAPIKey string
-	// Scanlist feature to get all the scan ids for a user
-	ScanList bool
-	// ListDatasources enables listing of datasources for user
-	ListDatasources bool
-	// ListTargets enables listing of targets for user
-	ListTargets bool
-	// ListTemplates enables listing of templates for user
-	ListTemplates bool
-	// ListReportingSources enables listing of reporting source
-	ListReportingSources bool
-	// DisableReportingSource disables a reporting source
-	DisableReportingSource string
-	// EnableReportingSource enables a reporting source
-	EnableReportingSource string
-	// Limit the number of items at a time
-	OutputLimit int
-	// Nostore
-	NoStore bool
-	// Delete scan
-	DeleteScan string
-	// AddDatasource adds a datasource to cloud storage
-	AddDatasource string
-	// RemoveDatasource deletes a datasource from cloud storage
-	RemoveDatasource string
-	// AddTemplate adds a list of templates to custom datasource
-	AddTemplate string
-	// AddTarget adds a list of targets to custom datasource
-	AddTarget string
-	// GetTemplate gets a template by id
-	GetTemplate string
-	// GetTarget gets a target by id
-	GetTarget string
-	// RemoveTemplate removes a list of templates
-	RemoveTemplate string
-	// RemoveTarget removes a list of targets
-	RemoveTarget string
-	// Get issues for a scan
-	ScanOutput string
 	// ResolversFile is a file containing resolvers for nuclei.
 	ResolversFile string
 	// StatsInterval is the number of seconds to display stats after
@@ -139,10 +97,6 @@ type Options struct {
 	MetricsPort int
 	// MaxHostError is the maximum number of errors allowed for a host
 	MaxHostError int
-	// TrackError contains additional error messages that count towards the maximum number of errors allowed for a host
-	TrackError goflags.StringSlice
-	// NoHostErrors disables host skipping after maximum number of errors
-	NoHostErrors bool
 	// BulkSize is the of targets analyzed in parallel for each template
 	BulkSize int
 	// TemplateThreads is the number of templates executed in parallel
@@ -175,24 +129,16 @@ type Options struct {
 	MaxRedirects int
 	// FollowRedirects enables following redirects for http request module
 	FollowRedirects bool
-	// FollowRedirects enables following redirects for http request module only on the same host
-	FollowHostRedirects bool
 	// OfflineHTTP is a flag that specific offline processing of http response
 	// using same matchers/extractors from http protocol without the need
 	// to send a new request, reading responses from a file.
 	OfflineHTTP bool
-	// Force HTTP2 requests
-	ForceAttemptHTTP2 bool
 	// StatsJSON writes stats output in JSON format
 	StatsJSON bool
 	// Headless specifies whether to allow headless mode templates
 	Headless bool
 	// ShowBrowser specifies whether the show the browser in headless mode
 	ShowBrowser bool
-	// NoTables disables pretty printing of cloud results in tables
-	NoTables bool
-	// DisableClustering disables clustering of templates
-	DisableClustering bool
 	// UseInstalledChrome skips chrome install and use local instance
 	UseInstalledChrome bool
 	// SystemResolvers enables override of nuclei's DNS client opting to use system resolver stack.
@@ -207,8 +153,6 @@ type Options struct {
 	DebugRequests bool
 	// DebugResponse mode allows debugging response for the engine
 	DebugResponse bool
-	// DisableHTTPProbe disables http probing feature of input normalization
-	DisableHTTPProbe bool
 	// LeaveDefaultPorts skips normalization of default ports
 	LeaveDefaultPorts bool
 	// AutomaticScan enables automatic tech based template execution
@@ -224,26 +168,18 @@ type Options struct {
 	// Verbose flag indicates whether to show verbose output or not
 	Verbose        bool
 	VerboseVerbose bool
-	// ShowVarDump displays variable dump
-	ShowVarDump bool
 	// No-Color disables the colored output.
 	NoColor bool
 	// UpdateTemplates updates the templates installed at startup
 	UpdateTemplates bool
-	// JSON writes json line output to files
-	JSONL bool
+	// JSON writes json output to files
+	JSON bool
 	// JSONRequests writes requests/responses for matches in JSON output
 	JSONRequests bool
-	// JSONExport is the file to export JSON output format to
-	JSONExport string
-	// Cloud enables nuclei cloud scan execution
-	Cloud bool
 	// EnableProgressBar enables progress bar
 	EnableProgressBar bool
 	// TemplatesVersion shows the templates installed version
 	TemplatesVersion bool
-	// TemplateDisplay displays the template contents
-	TemplateDisplay bool
 	// TemplateList lists available templates
 	TemplateList bool
 	// HangMonitor enables nuclei hang monitoring
@@ -256,14 +192,14 @@ type Options struct {
 	Stream bool
 	// NoMeta disables display of metadata for the matches
 	NoMeta bool
-	// Timestamp enables display of timestamp for the matcher
-	Timestamp bool
+	// NoTimestamp disables display of timestamp for the matcher
+	NoTimestamp bool
 	// Project is used to avoid sending same HTTP request multiple times
 	Project bool
 	// NewTemplates only runs newly added templates from the repository
 	NewTemplates bool
 	// NewTemplatesWithVersion runs new templates added in specific version
-	NewTemplatesWithVersion goflags.StringSlice
+	NewTemplatesWithVersion goflags.CommaSeparatedStringSlice
 	// NoInteractsh disables use of interactsh server for interaction polling
 	NoInteractsh bool
 	// UpdateNuclei checks for an update for the nuclei engine
@@ -282,8 +218,6 @@ type Options struct {
 	ClientCAFile string
 	// Use ZTLS library
 	ZTLS bool
-	// Sandbox enables sandboxed nuclei template execution
-	Sandbox bool
 	// ShowMatchLine enables display of match line number
 	ShowMatchLine bool
 	// EnablePprof enables exposing pprof runtime information with a webserver.
@@ -300,12 +234,6 @@ type Options struct {
 	Interface string
 	// SourceIP sets custom source IP address for network requests
 	SourceIP string
-	// AttackType overrides template level attack-type configuration
-	AttackType string
-	// ResponseReadSize is the maximum size of response to read
-	ResponseReadSize int
-	// ResponseSaveSize is the maximum size of response to save
-	ResponseSaveSize int
 	// Health Check
 	HealthCheck bool
 	// Time to wait between each input read operation before closing the stream
@@ -313,45 +241,21 @@ type Options struct {
 	// Disable stdin for input processing
 	DisableStdin bool
 	// IncludeConditions is the list of conditions templates should match
-	IncludeConditions goflags.StringSlice
+	IncludeConditions goflags.FileStringSlice
 	// Custom Config Directory
 	CustomConfigDir string
-	// Enable uncover egine
-	Uncover bool
-	// Uncover search query
-	UncoverQuery goflags.StringSlice
-	// Uncover search engine
-	UncoverEngine goflags.StringSlice
-	// Uncover search field
-	UncoverField string
-	// Uncover search limit
-	UncoverLimit int
-	// Uncover search delay
-	UncoverDelay int
-	// ConfigPath contains the config path (used by healthcheck)
-	ConfigPath string
-	// ScanAllIPs associated to a dns record
-	ScanAllIPs bool
-	// IPVersion to scan (4,6)
-	IPVersion goflags.StringSlice
-	// Github token used to clone/pull from private repos for custom templates
-	GithubToken string
-	// GithubTemplateRepo is the list of custom public/private templates github repos
-	GithubTemplateRepo []string
-	// AWS access key for downloading templates from s3 bucket
-	AwsAccessKey string
-	// AWS secret key for downloading templates from s3 bucket
-	AwsSecretKey string
-	// AWS bucket name for downloading templates from s3 bucket
-	AwsBucketName string
-	// AWS Region name where aws s3 bucket is located
-	AwsRegion string
-	// Scan Strategy (auto,hosts-spray,templates-spray)
-	ScanStrategy string
-	// Fuzzing Type overrides template level fuzzing-type configuration
-	FuzzingType string
-	// Fuzzing Mode overrides template level fuzzing-mode configuration
-	FuzzingMode string
+}
+
+func (options *Options) AddVarPayload(key string, value interface{}) {
+	if options.varsPayload == nil {
+		options.varsPayload = make(map[string]interface{})
+	}
+
+	options.varsPayload[key] = value
+}
+
+func (options *Options) VarsPayload() map[string]interface{} {
+	return options.varsPayload
 }
 
 // ShouldLoadResume resume file
@@ -362,11 +266,6 @@ func (options *Options) ShouldLoadResume() bool {
 // ShouldSaveResume file
 func (options *Options) ShouldSaveResume() bool {
 	return true
-}
-
-// ShouldFollowHTTPRedirects determines if http redirects should be followed
-func (options *Options) ShouldFollowHTTPRedirects() bool {
-	return options.FollowRedirects || options.FollowHostRedirects
 }
 
 // DefaultOptions returns default options for nuclei
@@ -381,25 +280,4 @@ func DefaultOptions() *Options {
 		Retries:                 1,
 		MaxHostError:            30,
 	}
-}
-
-// HasCloudOptions returns true if cloud options have been specified
-func (options *Options) HasCloudOptions() bool {
-	return options.ScanList ||
-		options.DeleteScan != "" ||
-		options.ScanOutput != "" ||
-		options.ListDatasources ||
-		options.ListTargets ||
-		options.ListTemplates ||
-		options.RemoveDatasource != "" ||
-		options.AddTarget != "" ||
-		options.AddTemplate != "" ||
-		options.RemoveTarget != "" ||
-		options.RemoveTemplate != "" ||
-		options.GetTarget != "" ||
-		options.GetTemplate != ""
-}
-
-func (options *Options) ShouldUseHostError() bool {
-	return options.MaxHostError > 0 && !options.NoHostErrors
 }

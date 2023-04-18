@@ -3,8 +3,6 @@ package fastdialer
 import (
 	"net"
 	"time"
-
-	"golang.org/x/net/proxy"
 )
 
 // DefaultResolvers trusted
@@ -47,10 +45,8 @@ type Options struct {
 	DialerTimeout       time.Duration
 	DialerKeepAlive     time.Duration
 	Dialer              *net.Dialer
-	ProxyDialer         *proxy.Dialer
 	WithZTLS            bool
 	SNIName             string
-	OnDialCallback      func(hostname, IP string)
 }
 
 // DefaultOptions of the cache

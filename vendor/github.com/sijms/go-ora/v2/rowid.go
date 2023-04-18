@@ -7,7 +7,6 @@ import (
 type rowid struct {
 	rba         int64
 	partitionID int64
-	filter      byte
 	blockNumber int64
 	slotNumber  int64
 }

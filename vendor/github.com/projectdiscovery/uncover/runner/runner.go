@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -9,22 +10,16 @@ import (
 	"sync"
 	"time"
 
-	"errors"
-
+	"github.com/pkg/errors"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/iputil"
+	"github.com/projectdiscovery/stringsutil"
 	"github.com/projectdiscovery/uncover/uncover"
 	"github.com/projectdiscovery/uncover/uncover/agent/censys"
-	"github.com/projectdiscovery/uncover/uncover/agent/criminalip"
 	"github.com/projectdiscovery/uncover/uncover/agent/fofa"
-	"github.com/projectdiscovery/uncover/uncover/agent/hunter"
-	"github.com/projectdiscovery/uncover/uncover/agent/hunterhow"
-	"github.com/projectdiscovery/uncover/uncover/agent/netlas"
-	"github.com/projectdiscovery/uncover/uncover/agent/publicwww"
-	"github.com/projectdiscovery/uncover/uncover/agent/quake"
 	"github.com/projectdiscovery/uncover/uncover/agent/shodan"
 	"github.com/projectdiscovery/uncover/uncover/agent/shodanidb"
-	"github.com/projectdiscovery/uncover/uncover/agent/zoomeye"
-	stringsutil "github.com/projectdiscovery/utils/strings"
+	"go.uber.org/ratelimit"
 )
 
 func init() {
@@ -51,86 +46,42 @@ func (r *Runner) Run(ctx context.Context, query ...string) error {
 		return errors.New("no keys provided")
 	}
 
-	var agents []uncover.Agent
-	if len(r.options.Shodan) > 0 {
-		r.options.Engine = append(r.options.Engine, "shodan")
-		query = append(query, r.options.Shodan...)
-	}
-	if len(r.options.ShodanIdb) > 0 {
-		r.options.Engine = append(r.options.Engine, "shodan-idb")
-		query = append(query, r.options.ShodanIdb...)
-	}
-	if len(r.options.Fofa) > 0 {
-		r.options.Engine = append(r.options.Engine, "fofa")
-		query = append(query, r.options.Fofa...)
-	}
-	if len(r.options.Censys) > 0 {
-		r.options.Engine = append(r.options.Engine, "censys")
-		query = append(query, r.options.Censys...)
-	}
-	if len(r.options.Quake) > 0 {
-		r.options.Engine = append(r.options.Engine, "quake")
-		query = append(query, r.options.Quake...)
-	}
-	if len(r.options.Hunter) > 0 {
-		r.options.Engine = append(r.options.Engine, "hunter")
-		query = append(query, r.options.Hunter...)
-	}
-	if len(r.options.ZoomEye) > 0 {
-		r.options.Engine = append(r.options.Engine, "zoomeye")
-		query = append(query, r.options.ZoomEye...)
-	}
-	if len(r.options.Netlas) > 0 {
-		r.options.Engine = append(r.options.Engine, "netlas")
-		query = append(query, r.options.Netlas...)
-	}
-	if len(r.options.CriminalIP) > 0 {
-		r.options.Engine = append(r.options.Engine, "criminalip")
-		query = append(query, r.options.CriminalIP...)
-	}
-	if len(r.options.Publicwww) > 0 {
-		r.options.Engine = append(r.options.Engine, "publicwww")
-		query = append(query, r.options.Publicwww...)
-	}
-	if len(r.options.HunterHow) > 0 {
-		r.options.Engine = append(r.options.Engine, "hunterhow")
-		query = append(query, r.options.HunterHow...)
+	var censysRateLimiter, fofaRateLimiter, shodanRateLimiter, shodanIdbRateLimiter ratelimit.Limiter
+	if r.options.Delay > 0 {
+		censysRateLimiter = ratelimit.New(1, ratelimit.Per(r.options.delay))
+		fofaRateLimiter = ratelimit.New(1, ratelimit.Per(r.options.delay))
+		shodanRateLimiter = ratelimit.New(1, ratelimit.Per(r.options.delay))
+		shodanIdbRateLimiter = ratelimit.New(1024) // seems a reasonable upper limit
+	} else {
+		censysRateLimiter = ratelimit.NewUnlimited()
+		fofaRateLimiter = ratelimit.NewUnlimited()
+		shodanRateLimiter = ratelimit.NewUnlimited()
+		shodanIdbRateLimiter = ratelimit.NewUnlimited()
 	}
 
+	var agents []uncover.Agent
 	// declare clients
 	for _, engine := range r.options.Engine {
 		var (
-			err error
+			agent uncover.Agent
+			err   error
 		)
 		switch engine {
 		case "shodan":
-			agents = append(agents, &shodan.Agent{})
+			agent, err = shodan.NewWithOptions(&uncover.AgentOptions{RateLimiter: shodanRateLimiter})
 		case "censys":
-			agents = append(agents, &censys.Agent{})
+			agent, err = censys.NewWithOptions(&uncover.AgentOptions{RateLimiter: censysRateLimiter})
 		case "fofa":
-			agents = append(agents, &fofa.Agent{})
+			agent, err = fofa.NewWithOptions(&uncover.AgentOptions{RateLimiter: fofaRateLimiter})
 		case "shodan-idb":
-			agents = append(agents, &shodanidb.Agent{})
-		case "quake":
-			agents = append(agents, &quake.Agent{})
-		case "hunter":
-			agents = append(agents, &hunter.Agent{})
-		case "zoomeye":
-			agents = append(agents, &zoomeye.Agent{})
-		case "netlas":
-			agents = append(agents, &netlas.Agent{})
-		case "criminalip":
-			agents = append(agents, &criminalip.Agent{})
-		case "publicwww":
-			agents = append(agents, &publicwww.Agent{})
-		case "hunterhow":
-			agents = append(agents, &hunterhow.Agent{})
+			agent, err = shodanidb.NewWithOptions(&uncover.AgentOptions{RateLimiter: shodanIdbRateLimiter})
 		default:
 			err = errors.New("unknown agent type")
 		}
 		if err != nil {
 			return err
 		}
+		agents = append(agents, agent)
 	}
 
 	// open the output file - always overwrite
@@ -138,12 +89,7 @@ func (r *Runner) Run(ctx context.Context, query ...string) error {
 	if err != nil {
 		return err
 	}
-
-	// don't write to stdout if we're using verbose mode
-	if !r.options.Verbose {
-		outputWriter.AddWriters(os.Stdout)
-	}
-
+	outputWriter.AddWriters(os.Stdout)
 	if r.options.OutputFile != "" {
 		outputFile, err := os.Create(r.options.OutputFile)
 		if err != nil {
@@ -152,6 +98,7 @@ func (r *Runner) Run(ctx context.Context, query ...string) error {
 		defer outputFile.Close()
 		outputWriter.AddWriters(outputFile)
 	}
+
 	// enumerate
 	var wg sync.WaitGroup
 
@@ -161,26 +108,22 @@ func (r *Runner) Run(ctx context.Context, query ...string) error {
 			Limit: r.options.Limit,
 		}
 		for _, agent := range agents {
+			// skip all agents for pure ips/cidrs
+			if shouldSkipForAgent(agent, uncoverQuery) {
+				continue
+			}
 			wg.Add(1)
 			go func(agent uncover.Agent, uncoverQuery *uncover.Query) {
-				optionFields := r.options.OutputFields
 				defer wg.Done()
 				keys := r.options.Provider.GetKeys()
 				if keys.Empty() && agent.Name() != "shodan-idb" {
 					gologger.Error().Label(agent.Name()).Msgf("empty keys\n")
 					return
 				}
-
-				var session *uncover.Session
-				if r.options.RateLimitMinute > 0 {
-					session, err = uncover.NewSession(&keys, r.options.Retries, r.options.Timeout, r.options.RateLimitMinute, r.options.Engine, time.Minute)
-				} else {
-					session, err = uncover.NewSession(&keys, r.options.Retries, r.options.Timeout, r.options.RateLimit, r.options.Engine, time.Second)
-				}
+				session, err := uncover.NewSession(&keys, r.options.Timeout)
 				if err != nil {
 					gologger.Error().Label(agent.Name()).Msgf("couldn't create new session: %s\n", err)
 				}
-
 				ch, err := agent.Query(session, uncoverQuery)
 				if err != nil {
 					gologger.Warning().Msgf("%s\n", err)
@@ -192,8 +135,12 @@ func (r *Runner) Run(ctx context.Context, query ...string) error {
 					case result.Error != nil:
 						gologger.Warning().Label(agent.Name()).Msgf("%s\n", result.Error.Error())
 					case r.options.JSON:
-						gologger.Verbose().Label(agent.Name()).Msgf("%s\n", result.JSON())
-						outputWriter.WriteJsonData(result)
+						data, err := json.Marshal(result)
+						if err != nil {
+							continue
+						}
+						gologger.Verbose().Label(agent.Name()).Msgf("%s\n", string(data))
+						outputWriter.Write(data)
 					case r.options.Raw:
 						gologger.Verbose().Label(agent.Name()).Msgf("%s\n", result.RawData())
 						outputWriter.WriteString(result.RawData())
@@ -203,14 +150,10 @@ func (r *Runner) Run(ctx context.Context, query ...string) error {
 							"ip", result.IP,
 							"host", result.Host,
 							"port", port,
-							"url", result.Url,
 						)
-						if (result.IP == "" || port == "0") && stringsutil.ContainsAny(r.options.OutputFields, "ip", "port") {
-							optionFields = "host"
-						}
-						outData := replacer.Replace(optionFields)
+						outData := replacer.Replace(r.options.OutputFields)
 						searchFor := []string{result.IP, port}
-						if result.Host != "" || r.options.OutputFile != "" {
+						if result.Host != "" {
 							searchFor = append(searchFor, result.Host)
 						}
 						// send to output if any of the field got replaced
@@ -227,4 +170,8 @@ func (r *Runner) Run(ctx context.Context, query ...string) error {
 
 	wg.Wait()
 	return nil
+}
+
+func shouldSkipForAgent(agent uncover.Agent, uncoverQuery *uncover.Query) bool {
+	return (iputil.IsIP(uncoverQuery.Query) || iputil.IsCIDR(uncoverQuery.Query)) && agent.Name() != "shodan-idb"
 }

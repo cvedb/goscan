@@ -34,15 +34,14 @@ type PackagesService struct {
 //
 // GitLab API docs: https://docs.gitlab.com/ee/api/packages.html
 type Package struct {
-	ID               int           `json:"id"`
-	Name             string        `json:"name"`
-	Version          string        `json:"version"`
-	PackageType      string        `json:"package_type"`
-	Status           string        `json:"status"`
-	Links            *PackageLinks `json:"_links"`
-	CreatedAt        *time.Time    `json:"created_at"`
-	LastDownloadedAt *time.Time    `json:"last_downloaded_at"`
-	Tags             []PackageTag  `json:"tags"`
+	ID          int           `json:"id"`
+	Name        string        `json:"name"`
+	Version     string        `json:"version"`
+	PackageType string        `json:"package_type"`
+	Status      string        `json:"status"`
+	Links       *PackageLinks `json:"_links"`
+	CreatedAt   *time.Time    `json:"created_at"`
+	Tags        []string      `json:"tags"`
 }
 
 func (s Package) String() string {
@@ -69,19 +68,6 @@ type PackageLinks struct {
 }
 
 func (s PackageLinks) String() string {
-	return Stringify(s)
-}
-
-// PackageTag holds label information about the package
-type PackageTag struct {
-	ID        int        `json:"id"`
-	PackageID int        `json:"package_id"`
-	Name      string     `json:"name"`
-	CreatedAt *time.Time `json:"created_at"`
-	UpdatedAt *time.Time `json:"updated_at"`
-}
-
-func (s PackageTag) String() string {
 	return Stringify(s)
 }
 

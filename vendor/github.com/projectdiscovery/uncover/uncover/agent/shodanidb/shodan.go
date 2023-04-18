@@ -6,18 +6,27 @@ import (
 	"net/http"
 	"net/url"
 
-	"errors"
-
+	"github.com/pkg/errors"
+	"github.com/projectdiscovery/iputil"
 	"github.com/projectdiscovery/mapcidr"
 	"github.com/projectdiscovery/uncover/uncover"
-	iputil "github.com/projectdiscovery/utils/ip"
 )
 
 const (
 	URL = "https://internetdb.shodan.io/%s"
 )
 
-type Agent struct{}
+type Agent struct {
+	options *uncover.AgentOptions
+}
+
+func New() (uncover.Agent, error) {
+	return &Agent{}, nil
+}
+
+func NewWithOptions(options *uncover.AgentOptions) (uncover.Agent, error) {
+	return &Agent{options: options}, nil
+}
 
 func (agent *Agent) Name() string {
 	return "shodan-idb"
@@ -46,7 +55,8 @@ func (agent *Agent) queryURL(session *uncover.Session, URL string, shodanRequest
 	if err != nil {
 		return nil, err
 	}
-	return session.Do(request, agent.Name())
+	agent.options.RateLimiter.Take()
+	return session.Do(request)
 }
 
 func (agent *Agent) query(URL string, session *uncover.Session, shodanRequest *ShodanRequest, results chan uncover.Result) {

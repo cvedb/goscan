@@ -12,12 +12,15 @@ type Client struct {
 	UserName string
 	Password string
 	// On cmd UDP, let server control the tcp and udp connection relationship
-	TCPConn       net.Conn
-	UDPConn       net.Conn
+	TCPConn       *net.TCPConn
+	UDPConn       *net.UDPConn
 	RemoteAddress net.Addr
 	TCPTimeout    int
 	UDPTimeout    int
-	Dst           string
+	// HijackServerUDPAddr can let client control which server UDP address to connect to after sending request,
+	// In most cases, you should ignore this, according to the standard server will return the address in reply,
+	// More: https://github.com/txthinking/socks5/pull/8.
+	HijackServerUDPAddr func(*Reply) (*net.UDPAddr, error)
 }
 
 // This is just create a client, you need to use Dial to create conn
@@ -36,28 +39,32 @@ func (c *Client) Dial(network, addr string) (net.Conn, error) {
 	return c.DialWithLocalAddr(network, "", addr, nil)
 }
 
-// If you want to send address that expects to use to send UDP, just assign it to src, otherwise it will send zero address.
-// Recommend specifying the src address in a non-NAT environment, and leave it blank in other cases.
 func (c *Client) DialWithLocalAddr(network, src, dst string, remoteAddr net.Addr) (net.Conn, error) {
 	c = &Client{
-		Server:        c.Server,
-		UserName:      c.UserName,
-		Password:      c.Password,
-		TCPTimeout:    c.TCPTimeout,
-		UDPTimeout:    c.UDPTimeout,
-		Dst:           dst,
-		RemoteAddress: remoteAddr,
+		Server:              c.Server,
+		UserName:            c.UserName,
+		Password:            c.Password,
+		TCPTimeout:          c.TCPTimeout,
+		UDPTimeout:          c.UDPTimeout,
+		RemoteAddress:       remoteAddr,
+		HijackServerUDPAddr: c.HijackServerUDPAddr,
 	}
 	var err error
 	if network == "tcp" {
-		var laddr net.Addr
-		if src != "" {
-			laddr, err = net.ResolveTCPAddr("tcp", src)
+		if c.RemoteAddress == nil {
+			c.RemoteAddress, err = net.ResolveTCPAddr("tcp", dst)
 			if err != nil {
 				return nil, err
 			}
 		}
-		if err := c.Negotiate(laddr); err != nil {
+		var la *net.TCPAddr
+		if src != "" {
+			la, err = net.ResolveTCPAddr("tcp", src)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if err := c.Negotiate(la); err != nil {
 			return nil, err
 		}
 		a, h, p, err := ParseAddress(dst)
@@ -73,32 +80,59 @@ func (c *Client) DialWithLocalAddr(network, src, dst string, remoteAddr net.Addr
 		return c, nil
 	}
 	if network == "udp" {
-		var laddr net.Addr
-		if src != "" {
-			laddr, err = net.ResolveTCPAddr("tcp", src)
+		if c.RemoteAddress == nil {
+			c.RemoteAddress, err = net.ResolveUDPAddr("udp", dst)
 			if err != nil {
 				return nil, err
 			}
 		}
-		if err := c.Negotiate(laddr); err != nil {
+		var la *net.TCPAddr
+		if src != "" {
+			la, err = net.ResolveTCPAddr("tcp", src)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if err := c.Negotiate(la); err != nil {
 			return nil, err
 		}
 
-		a, h, p := ATYPIPv4, net.IPv4zero, []byte{0x00, 0x00}
+		var laddr *net.UDPAddr
 		if src != "" {
-			a, h, p, err = ParseAddress(src)
+			laddr, err = net.ResolveUDPAddr("udp", src)
 			if err != nil {
 				return nil, err
 			}
-			if a == ATYPDomain {
-				h = h[1:]
+		}
+		if src == "" {
+			laddr = &net.UDPAddr{
+				IP:   c.TCPConn.LocalAddr().(*net.TCPAddr).IP,
+				Port: c.TCPConn.LocalAddr().(*net.TCPAddr).Port,
+				Zone: c.TCPConn.LocalAddr().(*net.TCPAddr).Zone,
 			}
+		}
+		a, h, p, err := ParseAddress(laddr.String())
+		if err != nil {
+			return nil, err
 		}
 		rp, err := c.Request(NewRequest(CmdUDP, a, h, p))
 		if err != nil {
 			return nil, err
 		}
-		c.UDPConn, err = DialUDP("udp", src, rp.Address())
+		var raddr *net.UDPAddr
+		if c.HijackServerUDPAddr == nil {
+			raddr, err = net.ResolveUDPAddr("udp", rp.Address())
+			if err != nil {
+				return nil, err
+			}
+		}
+		if c.HijackServerUDPAddr != nil {
+			raddr, err = c.HijackServerUDPAddr(rp)
+			if err != nil {
+				return nil, err
+			}
+		}
+		c.UDPConn, err = Dial.DialUDP("udp", laddr, raddr)
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +166,7 @@ func (c *Client) Write(b []byte) (int, error) {
 	if c.UDPConn == nil {
 		return c.TCPConn.Write(b)
 	}
-	a, h, p, err := ParseAddress(c.Dst)
+	a, h, p, err := ParseAddress(c.RemoteAddress.String())
 	if err != nil {
 		return 0, err
 	}
@@ -193,13 +227,12 @@ func (c *Client) SetWriteDeadline(t time.Time) error {
 	return c.UDPConn.SetWriteDeadline(t)
 }
 
-func (c *Client) Negotiate(laddr net.Addr) error {
-	src := ""
-	if laddr != nil {
-		src = laddr.String()
+func (c *Client) Negotiate(laddr *net.TCPAddr) error {
+	raddr, err := net.ResolveTCPAddr("tcp", c.Server)
+	if err != nil {
+		return err
 	}
-	var err error
-	c.TCPConn, err = DialTCP("tcp", src, c.Server)
+	c.TCPConn, err = Dial.DialTCP("tcp", laddr, raddr)
 	if err != nil {
 		return err
 	}

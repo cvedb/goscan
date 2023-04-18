@@ -3,7 +3,7 @@ package generators
 import (
 	"os"
 
-	stringsutil "github.com/projectdiscovery/utils/strings"
+	"github.com/projectdiscovery/stringsutil"
 )
 
 var envVars map[string]interface{}
@@ -12,8 +12,7 @@ func parseEnvVars() map[string]interface{} {
 	sliceEnvVars := os.Environ()
 	parsedEnvVars := make(map[string]interface{}, len(sliceEnvVars))
 	for _, envVar := range sliceEnvVars {
-		key, _ := stringsutil.Before(envVar, "=")
-		val, _ := stringsutil.After(envVar, "=")
+		key, val := stringsutil.Before(envVar, "="), stringsutil.After(envVar, "=")
 		parsedEnvVars[key] = val
 	}
 	return parsedEnvVars

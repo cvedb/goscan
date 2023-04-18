@@ -39,7 +39,6 @@ func newHttpClient(options *types.Options) (*http.Client, error) {
 	}
 
 	transport := &http.Transport{
-		ForceAttemptHTTP2:   options.ForceAttemptHTTP2,
 		DialContext:         dialer.Dial,
 		DialTLSContext:      dialer.DialTLS,
 		MaxIdleConns:        500,

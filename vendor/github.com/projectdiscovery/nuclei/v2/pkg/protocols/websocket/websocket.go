@@ -23,7 +23,6 @@ import (
 	"github.com/projectdiscovery/nuclei/v2/pkg/operators/matchers"
 	"github.com/projectdiscovery/nuclei/v2/pkg/output"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols"
-	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/contextargs"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/expressions"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/generators"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/helpers/eventcreator"
@@ -32,38 +31,37 @@ import (
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/network/networkclientpool"
 	templateTypes "github.com/projectdiscovery/nuclei/v2/pkg/templates/types"
 	"github.com/projectdiscovery/nuclei/v2/pkg/types"
-	urlutil "github.com/projectdiscovery/utils/url"
 )
 
 // Request is a request for the Websocket protocol
 type Request struct {
 	// Operators for the current request go here.
-	operators.Operators `yaml:",inline,omitempty" json:",inline,omitempty"`
-	CompiledOperators   *operators.Operators `yaml:"-" json:"-"`
+	operators.Operators `yaml:",inline,omitempty"`
+	CompiledOperators   *operators.Operators `yaml:"-"`
 
 	// description: |
 	//   Address contains address for the request
-	Address string `yaml:"address,omitempty" json:"address,omitempty" jsonschema:"title=address for the websocket request,description=Address contains address for the request"`
+	Address string `yaml:"address,omitempty" jsonschema:"title=address for the websocket request,description=Address contains address for the request"`
 	// description: |
 	//   Inputs contains inputs for the websocket protocol
-	Inputs []*Input `yaml:"inputs,omitempty" json:"inputs,omitempty" jsonschema:"title=inputs for the websocket request,description=Inputs contains any input/output for the current request"`
+	Inputs []*Input `yaml:"inputs,omitempty" jsonschema:"title=inputs for the websocket request,description=Inputs contains any input/output for the current request"`
 	// description: |
 	//   Headers contains headers for the request.
-	Headers map[string]string `yaml:"headers,omitempty" json:"headers,omitempty" jsonschema:"title=headers contains the request headers,description=Headers contains headers for the request"`
+	Headers map[string]string `yaml:"headers,omitempty" jsonschema:"title=headers contains the request headers,description=Headers contains headers for the request"`
 
 	// description: |
 	//   Attack is the type of payload combinations to perform.
 	//
 	//   Sniper is each payload once, pitchfork combines multiple payload sets and clusterbomb generates
 	//   permutations and combinations for all payloads.
-	AttackType generators.AttackTypeHolder `yaml:"attack,omitempty" json:"attack,omitempty" jsonschema:"title=attack is the payload combination,description=Attack is the type of payload combinations to perform,enum=sniper,enum=pitchfork,enum=clusterbomb"`
+	AttackType generators.AttackTypeHolder `yaml:"attack,omitempty" jsonschema:"title=attack is the payload combination,description=Attack is the type of payload combinations to perform,enum=sniper,enum=pitchfork,enum=clusterbomb"`
 	// description: |
 	//   Payloads contains any payloads for the current request.
 	//
 	//   Payloads support both key-values combinations where a list
 	//   of payloads is provided, or optionally a single file can also
 	//   be provided as payload which will be read on run-time.
-	Payloads map[string]interface{} `yaml:"payloads,omitempty" json:"payloads,omitempty" jsonschema:"title=payloads for the webosocket request,description=Payloads contains any payloads for the current request"`
+	Payloads map[string]interface{} `yaml:"payloads,omitempty" jsonschema:"title=payloads for the webosocket request,description=Payloads contains any payloads for the current request"`
 
 	generator *generators.PayloadGenerator
 
@@ -81,12 +79,12 @@ type Input struct {
 	// examples:
 	//   - value: "\"TEST\""
 	//   - value: "\"hex_decode('50494e47')\""
-	Data string `yaml:"data,omitempty" json:"data,omitempty" jsonschema:"title=data to send as input,description=Data is the data to send as the input"`
+	Data string `yaml:"data,omitempty" jsonschema:"title=data to send as input,description=Data is the data to send as the input"`
 	// description: |
 	//   Name is the optional name of the data read to provide matching on.
 	// examples:
 	//   - value: "\"prefix\""
-	Name string `yaml:"name,omitempty" json:"name,omitempty" jsonschema:"title=optional name for data read,description=Optional name of the data read to provide matching on"`
+	Name string `yaml:"name,omitempty" jsonschema:"title=optional name for data read,description=Optional name of the data read to provide matching on"`
 }
 
 const (
@@ -105,7 +103,7 @@ func (request *Request) Compile(options *protocols.ExecuterOptions) error {
 	request.dialer = client
 
 	if len(request.Payloads) > 0 {
-		request.generator, err = generators.New(request.Payloads, request.AttackType.Value, request.options.TemplatePath, request.options.Options.TemplatesDirectory, request.options.Options.Sandbox, options.Catalog, options.Options.AttackType)
+		request.generator, err = generators.New(request.Payloads, request.AttackType.Value, request.options.TemplatePath, options.Catalog)
 		if err != nil {
 			return errors.Wrap(err, "could not parse payloads")
 		}
@@ -137,8 +135,8 @@ func (request *Request) GetID() string {
 }
 
 // ExecuteWithResults executes the protocol requests and returns results instead of writing them.
-func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicValues, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
-	hostname, err := getAddress(input.MetaInput.Input)
+func (request *Request) ExecuteWithResults(input string, dynamicValues, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
+	hostname, err := getAddress(input)
 	if err != nil {
 		return err
 	}
@@ -151,13 +149,13 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 			if !ok {
 				break
 			}
-			if err := request.executeRequestWithPayloads(input.MetaInput.Input, hostname, value, previous, callback); err != nil {
+			if err := request.executeRequestWithPayloads(input, hostname, value, previous, callback); err != nil {
 				return err
 			}
 		}
 	} else {
 		value := make(map[string]interface{})
-		if err := request.executeRequestWithPayloads(input.MetaInput.Input, hostname, value, previous, callback); err != nil {
+		if err := request.executeRequestWithPayloads(input, hostname, value, previous, callback); err != nil {
 			return err
 		}
 	}
@@ -180,7 +178,7 @@ func (request *Request) executeRequestWithPayloads(input, hostname string, dynam
 	payloadValues["Host"] = parsed.Hostname()
 	payloadValues["Scheme"] = parsed.Scheme
 	requestPath := parsed.Path
-	if values := urlutil.GetParams(parsed.Query()); len(values) > 0 {
+	if values := parsed.Query(); len(values) > 0 {
 		requestPath = requestPath + "?" + values.Encode()
 	}
 	payloadValues["Path"] = requestPath
@@ -210,7 +208,7 @@ func (request *Request) executeRequestWithPayloads(input, hostname string, dynam
 		TLSConfig: tlsConfig,
 	}
 
-	if vardump.EnableVarDump {
+	if request.options.Options.Debug || request.options.Options.DebugRequests {
 		gologger.Debug().Msgf("Protocol request variables: \n%s\n", vardump.DumpVariables(payloadValues))
 	}
 

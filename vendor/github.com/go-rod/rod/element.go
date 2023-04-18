@@ -66,7 +66,7 @@ func (el *Element) Focus() error {
 // window if it's not already within the visible area.
 func (el *Element) ScrollIntoView() error {
 	defer el.tryTrace(TraceTypeInput, "scroll into view")()
-	el.page.browser.trySlowMotion()
+	el.page.browser.trySlowmotion()
 
 	err := el.WaitStableRAF()
 	if err != nil {
@@ -84,7 +84,7 @@ func (el *Element) Hover() error {
 		return err
 	}
 
-	return el.page.Mouse.MoveTo(*pt)
+	return el.page.Mouse.Move(pt.X, pt.Y, 1)
 }
 
 // MoveMouseOut of the current element
@@ -94,13 +94,13 @@ func (el *Element) MoveMouseOut() error {
 		return err
 	}
 	box := shape.Box()
-	return el.page.Mouse.MoveTo(proto.NewPoint(box.X+box.Width, box.Y))
+	return el.page.Mouse.Move(box.X+box.Width, box.Y, 1)
 }
 
 // Click will press then release the button just like a human.
 // Before the action, it will try to scroll to the element, hover the mouse over it,
 // wait until the it's interactable and enabled.
-func (el *Element) Click(button proto.InputMouseButton, clickCount int) error {
+func (el *Element) Click(button proto.InputMouseButton) error {
 	err := el.Hover()
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func (el *Element) Click(button proto.InputMouseButton, clickCount int) error {
 
 	defer el.tryTrace(TraceTypeInput, string(button)+" click")()
 
-	return el.page.Mouse.Click(button, clickCount)
+	return el.page.Mouse.Click(button)
 }
 
 // Tap will scroll to the button and tap it just like a human.
@@ -190,9 +190,9 @@ func (el *Element) Interactable() (pt *proto.Point, err error) {
 	return
 }
 
-// Shape of the DOM element content. The shape is a group of 4-sides polygons.
-// A 4-sides polygon is not necessary a rectangle. 4-sides polygons can be apart from each other.
-// For example, we use 2 4-sides polygons to describe the shape below:
+// Shape of the DOM element content. The shape is a group of 4-sides polygons (4-gons).
+// A 4-gon is not necessary a rectangle. 4-gons can be apart from each other.
+// For example, we use 2 4-gons to describe the shape below:
 //
 //	  ____________          ____________
 //	 /        ___/    =    /___________/    +     _________
@@ -231,7 +231,7 @@ func (el *Element) SelectText(regex string) error {
 	}
 
 	defer el.tryTrace(TraceTypeInput, "select text: "+regex)()
-	el.page.browser.trySlowMotion()
+	el.page.browser.trySlowmotion()
 
 	_, err = el.Evaluate(evalHelper(js.SelectText, regex).ByUser())
 	return err
@@ -246,7 +246,7 @@ func (el *Element) SelectAllText() error {
 	}
 
 	defer el.tryTrace(TraceTypeInput, "select all text")()
-	el.page.browser.trySlowMotion()
+	el.page.browser.trySlowmotion()
 
 	_, err = el.Evaluate(evalHelper(js.SelectAllText).ByUser())
 	return err
@@ -317,7 +317,7 @@ func (el *Element) Select(selectors []string, selected bool, t SelectorType) err
 	}
 
 	defer el.tryTrace(TraceTypeInput, fmt.Sprintf(`select "%s"`, strings.Join(selectors, "; ")))()
-	el.page.browser.trySlowMotion()
+	el.page.browser.trySlowmotion()
 
 	res, err := el.Evaluate(evalHelper(js.Select, selectors, selected, t).ByUser())
 	if err != nil {
@@ -370,7 +370,7 @@ func (el *Element) SetFiles(paths []string) error {
 	absPaths := utils.AbsolutePaths(paths)
 
 	defer el.tryTrace(TraceTypeInput, fmt.Sprintf("set files: %v", absPaths))()
-	el.page.browser.trySlowMotion()
+	el.page.browser.trySlowmotion()
 
 	err := proto.DOMSetFileInputFiles{
 		Files:    absPaths,
@@ -402,9 +402,6 @@ func (el *Element) ShadowRoot() (*Element, error) {
 	}
 
 	// though now it's an array, w3c changed the spec of it to be a single.
-	if len(node.ShadowRoots) == 0 {
-		return nil, &ErrNoShadowRoot{el}
-	}
 	id := node.ShadowRoots[0].BackendNodeID
 
 	shadowNode, err := proto.DOMResolveNode{BackendNodeID: id}.Call(el)

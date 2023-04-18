@@ -136,7 +136,11 @@ func (db *Database) processRunCommand(ctx context.Context, cmd interface{},
 	cursorCommand bool, opts ...*options.RunCmdOptions) (*operation.Command, *session.Client, error) {
 	sess := sessionFromContext(ctx)
 	if sess == nil && db.client.sessionPool != nil {
-		sess = session.NewImplicitClientSession(db.client.sessionPool, db.client.id)
+		var err error
+		sess, err = session.NewClientSession(db.client.sessionPool, db.client.id, session.Implicit)
+		if err != nil {
+			return nil, sess, err
+		}
 	}
 
 	err := db.client.validSession(sess)
@@ -257,7 +261,11 @@ func (db *Database) Drop(ctx context.Context) error {
 
 	sess := sessionFromContext(ctx)
 	if sess == nil && db.client.sessionPool != nil {
-		sess = session.NewImplicitClientSession(db.client.sessionPool, db.client.id)
+		var err error
+		sess, err = session.NewClientSession(db.client.sessionPool, db.client.id, session.Implicit)
+		if err != nil {
+			return err
+		}
 		defer sess.EndSession()
 	}
 
@@ -354,7 +362,10 @@ func (db *Database) ListCollections(ctx context.Context, filter interface{}, opt
 
 	sess := sessionFromContext(ctx)
 	if sess == nil && db.client.sessionPool != nil {
-		sess = session.NewImplicitClientSession(db.client.sessionPool, db.client.id)
+		sess, err = session.NewClientSession(db.client.sessionPool, db.client.id, session.Implicit)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	err = db.client.validSession(sess)
@@ -734,7 +745,7 @@ func (db *Database) createCollectionOperation(name string, opts ...*options.Crea
 //
 // The viewName parameter specifies the name of the view to create.
 //
-// # The viewOn parameter specifies the name of the collection or view on which this view will be created
+// The viewOn parameter specifies the name of the collection or view on which this view will be created
 //
 // The pipeline parameter specifies an aggregation pipeline that will be exececuted against the source collection or
 // view to create this view.
@@ -764,7 +775,11 @@ func (db *Database) CreateView(ctx context.Context, viewName, viewOn string, pip
 func (db *Database) executeCreateOperation(ctx context.Context, op *operation.Create) error {
 	sess := sessionFromContext(ctx)
 	if sess == nil && db.client.sessionPool != nil {
-		sess = session.NewImplicitClientSession(db.client.sessionPool, db.client.id)
+		var err error
+		sess, err = session.NewClientSession(db.client.sessionPool, db.client.id, session.Implicit)
+		if err != nil {
+			return err
+		}
 		defer sess.EndSession()
 	}
 

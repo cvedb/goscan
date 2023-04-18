@@ -1,5 +1,5 @@
-//go:build !aix && !darwin && !linux && !freebsd && !openbsd && !windows && !solaris
-// +build !aix,!darwin,!linux,!freebsd,!openbsd,!windows,!solaris
+//go:build !aix && !darwin && !linux && !freebsd && !openbsd && !windows
+// +build !aix,!darwin,!linux,!freebsd,!openbsd,!windows
 
 package net
 

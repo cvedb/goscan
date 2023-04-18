@@ -104,20 +104,20 @@ const (
 	// DOMPseudoTypeInputListButton enum const
 	DOMPseudoTypeInputListButton DOMPseudoType = "input-list-button"
 
-	// DOMPseudoTypeViewTransition enum const
-	DOMPseudoTypeViewTransition DOMPseudoType = "view-transition"
+	// DOMPseudoTypePageTransition enum const
+	DOMPseudoTypePageTransition DOMPseudoType = "page-transition"
 
-	// DOMPseudoTypeViewTransitionGroup enum const
-	DOMPseudoTypeViewTransitionGroup DOMPseudoType = "view-transition-group"
+	// DOMPseudoTypePageTransitionContainer enum const
+	DOMPseudoTypePageTransitionContainer DOMPseudoType = "page-transition-container"
 
-	// DOMPseudoTypeViewTransitionImagePair enum const
-	DOMPseudoTypeViewTransitionImagePair DOMPseudoType = "view-transition-image-pair"
+	// DOMPseudoTypePageTransitionImageWrapper enum const
+	DOMPseudoTypePageTransitionImageWrapper DOMPseudoType = "page-transition-image-wrapper"
 
-	// DOMPseudoTypeViewTransitionOld enum const
-	DOMPseudoTypeViewTransitionOld DOMPseudoType = "view-transition-old"
+	// DOMPseudoTypePageTransitionOutgoingImage enum const
+	DOMPseudoTypePageTransitionOutgoingImage DOMPseudoType = "page-transition-outgoing-image"
 
-	// DOMPseudoTypeViewTransitionNew enum const
-	DOMPseudoTypeViewTransitionNew DOMPseudoType = "view-transition-new"
+	// DOMPseudoTypePageTransitionIncomingImage enum const
+	DOMPseudoTypePageTransitionIncomingImage DOMPseudoType = "page-transition-incoming-image"
 )
 
 // DOMShadowRootType Shadow root type.
@@ -146,34 +146,6 @@ const (
 
 	// DOMCompatibilityModeNoQuirksMode enum const
 	DOMCompatibilityModeNoQuirksMode DOMCompatibilityMode = "NoQuirksMode"
-)
-
-// DOMPhysicalAxes ContainerSelector physical axes
-type DOMPhysicalAxes string
-
-const (
-	// DOMPhysicalAxesHorizontal enum const
-	DOMPhysicalAxesHorizontal DOMPhysicalAxes = "Horizontal"
-
-	// DOMPhysicalAxesVertical enum const
-	DOMPhysicalAxesVertical DOMPhysicalAxes = "Vertical"
-
-	// DOMPhysicalAxesBoth enum const
-	DOMPhysicalAxesBoth DOMPhysicalAxes = "Both"
-)
-
-// DOMLogicalAxes ContainerSelector logical axes
-type DOMLogicalAxes string
-
-const (
-	// DOMLogicalAxesInline enum const
-	DOMLogicalAxesInline DOMLogicalAxes = "Inline"
-
-	// DOMLogicalAxesBlock enum const
-	DOMLogicalAxesBlock DOMLogicalAxes = "Block"
-
-	// DOMLogicalAxesBoth enum const
-	DOMLogicalAxesBoth DOMLogicalAxes = "Both"
 )
 
 // DOMNode DOM interaction is implemented in terms of mirror objects that represent the actual DOM nodes.
@@ -1451,10 +1423,9 @@ type DOMGetFrameOwnerResult struct {
 	NodeID DOMNodeID `json:"nodeId,omitempty"`
 }
 
-// DOMGetContainerForNode (experimental) Returns the query container of the given node based on container query
-// conditions: containerName, physical, and logical axes. If no axes are
-// provided, the style container is returned, which is the direct parent or the
-// closest element with a matching container-name.
+// DOMGetContainerForNode (experimental) Returns the container of the given node based on container query conditions.
+// If containerName is given, it will find the nearest container with a matching name;
+// otherwise it will find the nearest container regardless of its container name.
 type DOMGetContainerForNode struct {
 
 	// NodeID ...
@@ -1462,12 +1433,6 @@ type DOMGetContainerForNode struct {
 
 	// ContainerName (optional) ...
 	ContainerName string `json:"containerName,omitempty"`
-
-	// PhysicalAxes (optional) ...
-	PhysicalAxes DOMPhysicalAxes `json:"physicalAxes,omitempty"`
-
-	// LogicalAxes (optional) ...
-	LogicalAxes DOMLogicalAxes `json:"logicalAxes,omitempty"`
 }
 
 // ProtoReq name
@@ -1581,7 +1546,7 @@ type DOMChildNodeInserted struct {
 	// ParentNodeID Id of the node that has changed.
 	ParentNodeID DOMNodeID `json:"parentNodeId"`
 
-	// PreviousNodeID Id of the previous sibling.
+	// PreviousNodeID If of the previous siblint.
 	PreviousNodeID DOMNodeID `json:"previousNodeId"`
 
 	// Node Inserted node data.

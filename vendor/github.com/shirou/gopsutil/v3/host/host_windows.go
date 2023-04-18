@@ -103,14 +103,6 @@ func numProcs(ctx context.Context) (uint64, error) {
 }
 
 func UptimeWithContext(ctx context.Context) (uint64, error) {
-	up, err := uptimeMillis()
-	if err != nil {
-		return 0, err
-	}
-	return uint64((time.Duration(up) * time.Millisecond).Seconds()), nil
-}
-
-func uptimeMillis() (uint64, error) {
 	procGetTickCount := procGetTickCount64
 	err := procGetTickCount64.Find()
 	if err != nil {
@@ -120,7 +112,7 @@ func uptimeMillis() (uint64, error) {
 	if lastErr != 0 {
 		return 0, lastErr
 	}
-	return uint64(r1), nil
+	return uint64((time.Duration(r1) * time.Millisecond).Seconds()), nil
 }
 
 // cachedBootTime must be accessed via atomic.Load/StoreUint64
@@ -131,11 +123,11 @@ func BootTimeWithContext(ctx context.Context) (uint64, error) {
 	if t != 0 {
 		return t, nil
 	}
-	up, err := uptimeMillis()
+	up, err := Uptime()
 	if err != nil {
 		return 0, err
 	}
-	t = uint64((time.Duration(timeSinceMillis(up)) * time.Millisecond).Seconds())
+	t = timeSince(up)
 	atomic.StoreUint64(&cachedBootTime, t)
 	return t, nil
 }
@@ -196,14 +188,6 @@ func PlatformInformationWithContext(ctx context.Context) (platform string, famil
 		}
 	}
 
-	var UBR uint32 // Update Build Revision
-	err = windows.RegQueryValueEx(h, windows.StringToUTF16Ptr(`UBR`), nil, &valType, nil, &bufLen)
-	if err == nil {
-		regBuf := make([]byte, 4)
-		err = windows.RegQueryValueEx(h, windows.StringToUTF16Ptr(`UBR`), nil, &valType, (*byte)(unsafe.Pointer(&regBuf[0])), &bufLen)
-		copy((*[4]byte)(unsafe.Pointer(&UBR))[:], regBuf)
-	}
-
 	// PlatformFamily
 	switch osInfo.wProductType {
 	case 1:
@@ -215,9 +199,7 @@ func PlatformInformationWithContext(ctx context.Context) (platform string, famil
 	}
 
 	// Platform Version
-	version = fmt.Sprintf("%d.%d.%d.%d Build %d.%d",
-		osInfo.dwMajorVersion, osInfo.dwMinorVersion, osInfo.dwBuildNumber, UBR,
-		osInfo.dwBuildNumber, UBR)
+	version = fmt.Sprintf("%d.%d.%d Build %d", osInfo.dwMajorVersion, osInfo.dwMinorVersion, osInfo.dwBuildNumber, osInfo.dwBuildNumber)
 
 	return platform, family, version, nil
 }

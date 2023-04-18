@@ -3,8 +3,8 @@ package ants
 import "time"
 
 type loopQueue struct {
-	items  []worker
-	expiry []worker
+	items  []*goWorker
+	expiry []*goWorker
 	head   int
 	tail   int
 	size   int
@@ -13,7 +13,7 @@ type loopQueue struct {
 
 func newWorkerLoopQueue(size int) *loopQueue {
 	return &loopQueue{
-		items: make([]worker, size),
+		items: make([]*goWorker, size),
 		size:  size,
 	}
 }
@@ -41,7 +41,7 @@ func (wq *loopQueue) isEmpty() bool {
 	return wq.head == wq.tail && !wq.isFull
 }
 
-func (wq *loopQueue) insert(w worker) error {
+func (wq *loopQueue) insert(worker *goWorker) error {
 	if wq.size == 0 {
 		return errQueueIsReleased
 	}
@@ -49,7 +49,7 @@ func (wq *loopQueue) insert(w worker) error {
 	if wq.isFull {
 		return errQueueIsFull
 	}
-	wq.items[wq.tail] = w
+	wq.items[wq.tail] = worker
 	wq.tail++
 
 	if wq.tail == wq.size {
@@ -62,7 +62,7 @@ func (wq *loopQueue) insert(w worker) error {
 	return nil
 }
 
-func (wq *loopQueue) detach() worker {
+func (wq *loopQueue) detach() *goWorker {
 	if wq.isEmpty() {
 		return nil
 	}
@@ -78,7 +78,7 @@ func (wq *loopQueue) detach() worker {
 	return w
 }
 
-func (wq *loopQueue) refresh(duration time.Duration) []worker {
+func (wq *loopQueue) retrieveExpiry(duration time.Duration) []*goWorker {
 	expiryTime := time.Now().Add(-duration)
 	index := wq.binarySearch(expiryTime)
 	if index == -1 {
@@ -115,7 +115,7 @@ func (wq *loopQueue) binarySearch(expiryTime time.Time) int {
 	nlen = len(wq.items)
 
 	// if no need to remove work, return -1
-	if wq.isEmpty() || expiryTime.Before(wq.items[wq.head].lastUsedTime()) {
+	if wq.isEmpty() || expiryTime.Before(wq.items[wq.head].recycleTime) {
 		return -1
 	}
 
@@ -137,7 +137,7 @@ func (wq *loopQueue) binarySearch(expiryTime time.Time) int {
 		mid = l + ((r - l) >> 1)
 		// calculate true mid position from mapped mid position
 		tmid = (mid + basel + nlen) % nlen
-		if expiryTime.Before(wq.items[tmid].lastUsedTime()) {
+		if expiryTime.Before(wq.items[tmid].recycleTime) {
 			r = mid - 1
 		} else {
 			l = mid + 1
@@ -152,10 +152,10 @@ func (wq *loopQueue) reset() {
 		return
 	}
 
-retry:
+Releasing:
 	if w := wq.detach(); w != nil {
-		w.finish()
-		goto retry
+		w.task <- nil
+		goto Releasing
 	}
 	wq.items = wq.items[:0]
 	wq.size = 0

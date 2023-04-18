@@ -644,10 +644,10 @@ const (
 // are specified in third_party/blink/renderer/core/fetch/trust_token.idl.
 type NetworkTrustTokenParams struct {
 
-	// Operation ...
-	Operation NetworkTrustTokenOperationType `json:"operation"`
+	// Type ...
+	Type NetworkTrustTokenOperationType `json:"type"`
 
-	// RefreshPolicy Only set for "token-redemption" operation and determine whether
+	// RefreshPolicy Only set for "token-redemption" type and determine whether
 	// to request a fresh SRR or use a still valid cached SRR.
 	RefreshPolicy NetworkTrustTokenParamsRefreshPolicy `json:"refreshPolicy"`
 
@@ -668,35 +668,6 @@ const (
 
 	// NetworkTrustTokenOperationTypeSigning enum const
 	NetworkTrustTokenOperationTypeSigning NetworkTrustTokenOperationType = "Signing"
-)
-
-// NetworkAlternateProtocolUsage (experimental) The reason why Chrome uses a specific transport protocol for HTTP semantics.
-type NetworkAlternateProtocolUsage string
-
-const (
-	// NetworkAlternateProtocolUsageAlternativeJobWonWithoutRace enum const
-	NetworkAlternateProtocolUsageAlternativeJobWonWithoutRace NetworkAlternateProtocolUsage = "alternativeJobWonWithoutRace"
-
-	// NetworkAlternateProtocolUsageAlternativeJobWonRace enum const
-	NetworkAlternateProtocolUsageAlternativeJobWonRace NetworkAlternateProtocolUsage = "alternativeJobWonRace"
-
-	// NetworkAlternateProtocolUsageMainJobWonRace enum const
-	NetworkAlternateProtocolUsageMainJobWonRace NetworkAlternateProtocolUsage = "mainJobWonRace"
-
-	// NetworkAlternateProtocolUsageMappingMissing enum const
-	NetworkAlternateProtocolUsageMappingMissing NetworkAlternateProtocolUsage = "mappingMissing"
-
-	// NetworkAlternateProtocolUsageBroken enum const
-	NetworkAlternateProtocolUsageBroken NetworkAlternateProtocolUsage = "broken"
-
-	// NetworkAlternateProtocolUsageDNSAlpnH3JobWonWithoutRace enum const
-	NetworkAlternateProtocolUsageDNSAlpnH3JobWonWithoutRace NetworkAlternateProtocolUsage = "dnsAlpnH3JobWonWithoutRace"
-
-	// NetworkAlternateProtocolUsageDNSAlpnH3JobWonRace enum const
-	NetworkAlternateProtocolUsageDNSAlpnH3JobWonRace NetworkAlternateProtocolUsage = "dnsAlpnH3JobWonRace"
-
-	// NetworkAlternateProtocolUsageUnspecifiedReason enum const
-	NetworkAlternateProtocolUsageUnspecifiedReason NetworkAlternateProtocolUsage = "unspecifiedReason"
 )
 
 // NetworkResponse HTTP response data.
@@ -764,9 +735,6 @@ type NetworkResponse struct {
 
 	// Protocol (optional) Protocol used to fetch this request.
 	Protocol string `json:"protocol,omitempty"`
-
-	// AlternateProtocolUsage (experimental) (optional) The reason why Chrome uses a specific transport protocol for HTTP semantics.
-	AlternateProtocolUsage NetworkAlternateProtocolUsage `json:"alternateProtocolUsage,omitempty"`
 
 	// SecurityState Security state of the request resource.
 	SecurityState SecuritySecurityState `json:"securityState"`
@@ -959,9 +927,6 @@ const (
 	// NetworkSetCookieBlockedReasonUserPreferences enum const
 	NetworkSetCookieBlockedReasonUserPreferences NetworkSetCookieBlockedReason = "UserPreferences"
 
-	// NetworkSetCookieBlockedReasonThirdPartyBlockedInFirstPartySet enum const
-	NetworkSetCookieBlockedReasonThirdPartyBlockedInFirstPartySet NetworkSetCookieBlockedReason = "ThirdPartyBlockedInFirstPartySet"
-
 	// NetworkSetCookieBlockedReasonSyntaxError enum const
 	NetworkSetCookieBlockedReasonSyntaxError NetworkSetCookieBlockedReason = "SyntaxError"
 
@@ -1026,9 +991,6 @@ const (
 
 	// NetworkCookieBlockedReasonUserPreferences enum const
 	NetworkCookieBlockedReasonUserPreferences NetworkCookieBlockedReason = "UserPreferences"
-
-	// NetworkCookieBlockedReasonThirdPartyBlockedInFirstPartySet enum const
-	NetworkCookieBlockedReasonThirdPartyBlockedInFirstPartySet NetworkCookieBlockedReason = "ThirdPartyBlockedInFirstPartySet"
 
 	// NetworkCookieBlockedReasonUnknownError enum const
 	NetworkCookieBlockedReasonUnknownError NetworkCookieBlockedReason = "UnknownError"
@@ -1808,9 +1770,8 @@ func (m NetworkEnable) Call(c Client) error {
 	return call(m.ProtoReq(), m, nil, c)
 }
 
-// NetworkGetAllCookies (deprecated) Returns all browser cookies. Depending on the backend support, will return detailed cookie
+// NetworkGetAllCookies Returns all browser cookies. Depending on the backend support, will return detailed cookie
 // information in the `cookies` field.
-// Deprecated. Use Storage.getCookies instead.
 type NetworkGetAllCookies struct {
 }
 
@@ -1823,7 +1784,7 @@ func (m NetworkGetAllCookies) Call(c Client) (*NetworkGetAllCookiesResult, error
 	return &res, call(m.ProtoReq(), m, &res, c)
 }
 
-// NetworkGetAllCookiesResult (deprecated) ...
+// NetworkGetAllCookiesResult ...
 type NetworkGetAllCookiesResult struct {
 
 	// Cookies Array of cookie objects.
@@ -2775,9 +2736,6 @@ type NetworkRequestWillBeSentExtraInfo struct {
 
 	// ClientSecurityState (optional) The client security state set for the request.
 	ClientSecurityState *NetworkClientSecurityState `json:"clientSecurityState,omitempty"`
-
-	// SiteHasCookieInOtherPartition (optional) Whether the site has partitioned cookies stored in a partition different than the current one.
-	SiteHasCookieInOtherPartition bool `json:"siteHasCookieInOtherPartition,omitempty"`
 }
 
 // ProtoEvent name
@@ -2841,9 +2799,6 @@ const (
 
 	// NetworkTrustTokenOperationDoneStatusUnavailable enum const
 	NetworkTrustTokenOperationDoneStatusUnavailable NetworkTrustTokenOperationDoneStatus = "Unavailable"
-
-	// NetworkTrustTokenOperationDoneStatusUnauthorized enum const
-	NetworkTrustTokenOperationDoneStatusUnauthorized NetworkTrustTokenOperationDoneStatus = "Unauthorized"
 
 	// NetworkTrustTokenOperationDoneStatusBadResponse enum const
 	NetworkTrustTokenOperationDoneStatusBadResponse NetworkTrustTokenOperationDoneStatus = "BadResponse"

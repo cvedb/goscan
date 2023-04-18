@@ -574,7 +574,7 @@ const (
 // DebuggerRestartFrame Restarts particular call frame from the beginning. The old, deprecated
 // behavior of `restartFrame` is to stay paused and allow further CDP commands
 // after a restart was scheduled. This can cause problems with restarting, so
-// we now continue execution immediatly after it has been scheduled until we
+// we now continue execution immediately after it has been scheduled until we
 // reach the beginning of the restarted frame.
 //
 // To stay back-wards compatible, `restartFrame` now expects a `mode`
@@ -886,9 +886,6 @@ const (
 	// DebuggerSetPauseOnExceptionsStateNone enum const
 	DebuggerSetPauseOnExceptionsStateNone DebuggerSetPauseOnExceptionsState = "none"
 
-	// DebuggerSetPauseOnExceptionsStateCaught enum const
-	DebuggerSetPauseOnExceptionsStateCaught DebuggerSetPauseOnExceptionsState = "caught"
-
 	// DebuggerSetPauseOnExceptionsStateUncaught enum const
 	DebuggerSetPauseOnExceptionsStateUncaught DebuggerSetPauseOnExceptionsState = "uncaught"
 
@@ -896,8 +893,8 @@ const (
 	DebuggerSetPauseOnExceptionsStateAll DebuggerSetPauseOnExceptionsState = "all"
 )
 
-// DebuggerSetPauseOnExceptions Defines pause on exceptions state. Can be set to stop on all exceptions, uncaught exceptions,
-// or caught exceptions, no exceptions. Initial pause on exceptions state is `none`.
+// DebuggerSetPauseOnExceptions Defines pause on exceptions state. Can be set to stop on all exceptions, uncaught exceptions or
+// no exceptions. Initial pause on exceptions state is `none`.
 type DebuggerSetPauseOnExceptions struct {
 
 	// State Pause on exceptions mode.

@@ -5,11 +5,9 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -17,24 +15,17 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/go-rod/rod/lib/utils"
 	"github.com/pkg/errors"
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/generators"
-	errorutil "github.com/projectdiscovery/utils/errors"
-	fileutil "github.com/projectdiscovery/utils/file"
-	folderutil "github.com/projectdiscovery/utils/folder"
-	stringsutil "github.com/projectdiscovery/utils/strings"
 	"github.com/segmentio/ksuid"
 )
 
 var (
-	errinvalidArguments = errors.New("invalid arguments provided")
-	reUrlWithPort       = regexp.MustCompile(`{{BaseURL}}:(\d+)`)
+	invalidArgumentsError = errors.New("invalid arguments provided")
 )
 
 const (
-	errCouldNotGetElement  = "could not get element"
-	errCouldNotScroll      = "could not scroll into view"
-	errElementDidNotAppear = "Element did not appear in the given amount of time"
+	couldNotGetElementErrorMessage = "could not get element"
+	couldNotScrollErrorMessage     = "could not scroll into view"
 )
 
 // ExecuteActions executes a list of actions on a page.
@@ -98,12 +89,13 @@ func (p *Page) ExecuteActions(baseURL *url.URL, actions []*Action) (map[string]s
 	return outData, nil
 }
 
-type rule struct {
-	*sync.Once
+type requestRule struct {
 	Action ActionType
 	Part   string
 	Args   map[string]string
 }
+
+const elementDidNotAppearMessage = "Element did not appear in the given amount of time"
 
 // WaitVisible waits until an element appears.
 func (p *Page) WaitVisible(act *Action, out map[string]string) error {
@@ -123,10 +115,10 @@ func (p *Page) WaitVisible(act *Action, out map[string]string) error {
 
 	if element != nil {
 		if err := element.WaitVisible(); err != nil {
-			return errors.Wrap(err, errElementDidNotAppear)
+			return errors.Wrap(err, elementDidNotAppearMessage)
 		}
 	} else {
-		return errors.New(errElementDidNotAppear)
+		return errors.New(elementDidNotAppearMessage)
 	}
 
 	return nil
@@ -187,7 +179,12 @@ func (p *Page) ActionAddHeader(act *Action, out map[string]string /*TODO review 
 	args := make(map[string]string)
 	args["key"] = p.getActionArgWithDefaultValues(act, "key")
 	args["value"] = p.getActionArgWithDefaultValues(act, "value")
-	p.rules = append(p.rules, rule{Action: ActionAddHeader, Part: in, Args: args})
+	rule := requestRule{
+		Action: ActionAddHeader,
+		Part:   in,
+		Args:   args,
+	}
+	p.rules = append(p.rules, rule)
 	return nil
 }
 
@@ -198,7 +195,12 @@ func (p *Page) ActionSetHeader(act *Action, out map[string]string /*TODO review 
 	args := make(map[string]string)
 	args["key"] = p.getActionArgWithDefaultValues(act, "key")
 	args["value"] = p.getActionArgWithDefaultValues(act, "value")
-	p.rules = append(p.rules, rule{Action: ActionSetHeader, Part: in, Args: args})
+	rule := requestRule{
+		Action: ActionSetHeader,
+		Part:   in,
+		Args:   args,
+	}
+	p.rules = append(p.rules, rule)
 	return nil
 }
 
@@ -208,7 +210,12 @@ func (p *Page) ActionDeleteHeader(act *Action, out map[string]string /*TODO revi
 
 	args := make(map[string]string)
 	args["key"] = p.getActionArgWithDefaultValues(act, "key")
-	p.rules = append(p.rules, rule{Action: ActionDeleteHeader, Part: in, Args: args})
+	rule := requestRule{
+		Action: ActionDeleteHeader,
+		Part:   in,
+		Args:   args,
+	}
+	p.rules = append(p.rules, rule)
 	return nil
 }
 
@@ -218,17 +225,27 @@ func (p *Page) ActionSetBody(act *Action, out map[string]string /*TODO review un
 
 	args := make(map[string]string)
 	args["body"] = p.getActionArgWithDefaultValues(act, "body")
-	p.rules = append(p.rules, rule{Action: ActionSetBody, Part: in, Args: args})
+	rule := requestRule{
+		Action: ActionSetBody,
+		Part:   in,
+		Args:   args,
+	}
+	p.rules = append(p.rules, rule)
 	return nil
 }
 
 // ActionSetMethod executes an SetMethod action.
-func (p *Page) ActionSetMethod(act *Action, out map[string]string) error {
+func (p *Page) ActionSetMethod(act *Action, out map[string]string /*TODO review unused parameter*/) error {
 	in := p.getActionArgWithDefaultValues(act, "part")
 
 	args := make(map[string]string)
 	args["method"] = p.getActionArgWithDefaultValues(act, "method")
-	p.rules = append(p.rules, rule{Action: ActionSetMethod, Part: in, Args: args, Once: &sync.Once{}})
+	rule := requestRule{
+		Action: ActionSetMethod,
+		Part:   in,
+		Args:   args,
+	}
+	p.rules = append(p.rules, rule)
 	return nil
 }
 
@@ -236,7 +253,7 @@ func (p *Page) ActionSetMethod(act *Action, out map[string]string) error {
 func (p *Page) NavigateURL(action *Action, out map[string]string, parsed *url.URL /*TODO review unused parameter*/) error {
 	URL := p.getActionArgWithDefaultValues(action, "url")
 	if URL == "" {
-		return errinvalidArguments
+		return invalidArgumentsError
 	}
 
 	// Handle the dynamic value substitution here.
@@ -260,7 +277,7 @@ func (p *Page) NavigateURL(action *Action, out map[string]string, parsed *url.UR
 func (p *Page) RunScript(action *Action, out map[string]string) error {
 	code := p.getActionArgWithDefaultValues(action, "code")
 	if code == "" {
-		return errinvalidArguments
+		return invalidArgumentsError
 	}
 	if p.getActionArgWithDefaultValues(action, "hook") == "true" {
 		if _, err := p.page.EvalOnNewDocument(code); err != nil {
@@ -281,12 +298,12 @@ func (p *Page) RunScript(action *Action, out map[string]string) error {
 func (p *Page) ClickElement(act *Action, out map[string]string /*TODO review unused parameter*/) error {
 	element, err := p.pageElementBy(act.Data)
 	if err != nil {
-		return errors.Wrap(err, errCouldNotGetElement)
+		return errors.Wrap(err, couldNotGetElementErrorMessage)
 	}
 	if err = element.ScrollIntoView(); err != nil {
-		return errors.Wrap(err, errCouldNotScroll)
+		return errors.Wrap(err, couldNotScrollErrorMessage)
 	}
-	if err = element.Click(proto.InputMouseButtonLeft, 1); err != nil {
+	if err = element.Click(proto.InputMouseButtonLeft); err != nil {
 		return errors.Wrap(err, "could not click element")
 	}
 	return nil
@@ -301,12 +318,12 @@ func (p *Page) KeyboardAction(act *Action, out map[string]string /*TODO review u
 func (p *Page) RightClickElement(act *Action, out map[string]string /*TODO review unused parameter*/) error {
 	element, err := p.pageElementBy(act.Data)
 	if err != nil {
-		return errors.Wrap(err, errCouldNotGetElement)
+		return errors.Wrap(err, couldNotGetElementErrorMessage)
 	}
 	if err = element.ScrollIntoView(); err != nil {
-		return errors.Wrap(err, errCouldNotScroll)
+		return errors.Wrap(err, couldNotScrollErrorMessage)
 	}
-	if err = element.Click(proto.InputMouseButtonRight, 1); err != nil {
+	if err = element.Click(proto.InputMouseButtonRight); err != nil {
 		return errors.Wrap(err, "could not right click element")
 	}
 	return nil
@@ -331,27 +348,10 @@ func (p *Page) Screenshot(act *Action, out map[string]string) error {
 	if err != nil {
 		return errors.Wrap(err, "could not take screenshot")
 	}
-	if p.getActionArgWithDefaultValues(act, "mkdir") == "true" && stringsutil.ContainsAny(to, folderutil.UnixPathSeparator, folderutil.WindowsPathSeparator) {
-		// creates new directory if needed based on path `to`
-		// TODO: replace all permission bits with fileutil constants (https://github.com/projectdiscovery/utils/issues/113)
-		if err := os.MkdirAll(filepath.Dir(to), 0700); err != nil {
-			return errorutil.NewWithErr(err).Msgf("failed to create directory while writing screenshot")
-		}
-	}
-	filePath := to
-	if !strings.HasSuffix(to, ".png") {
-		filePath += ".png"
-	}
-
-	if fileutil.FileExists(filePath) {
-		// return custom error as overwriting files is not supported
-		return errorutil.NewWithTag("screenshot", "failed to write screenshot, file %v already exists", filePath)
-	}
-	err = os.WriteFile(filePath, data, 0540)
+	err = os.WriteFile(to+".png", data, 0540)
 	if err != nil {
 		return errors.Wrap(err, "could not write screenshot")
 	}
-	gologger.Info().Msgf("Screenshot successfully saved at %v\n", filePath)
 	return nil
 }
 
@@ -359,14 +359,14 @@ func (p *Page) Screenshot(act *Action, out map[string]string) error {
 func (p *Page) InputElement(act *Action, out map[string]string /*TODO review unused parameter*/) error {
 	value := p.getActionArgWithDefaultValues(act, "value")
 	if value == "" {
-		return errinvalidArguments
+		return invalidArgumentsError
 	}
 	element, err := p.pageElementBy(act.Data)
 	if err != nil {
-		return errors.Wrap(err, errCouldNotGetElement)
+		return errors.Wrap(err, couldNotGetElementErrorMessage)
 	}
 	if err = element.ScrollIntoView(); err != nil {
-		return errors.Wrap(err, errCouldNotScroll)
+		return errors.Wrap(err, couldNotScrollErrorMessage)
 	}
 	if err = element.Input(value); err != nil {
 		return errors.Wrap(err, "could not input element")
@@ -378,14 +378,14 @@ func (p *Page) InputElement(act *Action, out map[string]string /*TODO review unu
 func (p *Page) TimeInputElement(act *Action, out map[string]string /*TODO review unused parameter*/) error {
 	value := p.getActionArgWithDefaultValues(act, "value")
 	if value == "" {
-		return errinvalidArguments
+		return invalidArgumentsError
 	}
 	element, err := p.pageElementBy(act.Data)
 	if err != nil {
-		return errors.Wrap(err, errCouldNotGetElement)
+		return errors.Wrap(err, couldNotGetElementErrorMessage)
 	}
 	if err = element.ScrollIntoView(); err != nil {
-		return errors.Wrap(err, errCouldNotScroll)
+		return errors.Wrap(err, couldNotScrollErrorMessage)
 	}
 	t, err := time.Parse(time.RFC3339, value)
 	if err != nil {
@@ -401,14 +401,14 @@ func (p *Page) TimeInputElement(act *Action, out map[string]string /*TODO review
 func (p *Page) SelectInputElement(act *Action, out map[string]string /*TODO review unused parameter*/) error {
 	value := p.getActionArgWithDefaultValues(act, "value")
 	if value == "" {
-		return errinvalidArguments
+		return invalidArgumentsError
 	}
 	element, err := p.pageElementBy(act.Data)
 	if err != nil {
-		return errors.Wrap(err, errCouldNotGetElement)
+		return errors.Wrap(err, couldNotGetElementErrorMessage)
 	}
 	if err = element.ScrollIntoView(); err != nil {
-		return errors.Wrap(err, errCouldNotScroll)
+		return errors.Wrap(err, couldNotScrollErrorMessage)
 	}
 
 	selectedBool := false
@@ -424,7 +424,7 @@ func (p *Page) SelectInputElement(act *Action, out map[string]string /*TODO revi
 
 // WaitLoad waits for the page to load
 func (p *Page) WaitLoad(act *Action, out map[string]string /*TODO review unused parameter*/) error {
-	p.page.Timeout(2 * time.Second).WaitNavigation(proto.PageLifecycleEventNameFirstMeaningfulPaint)()
+	p.page.Timeout(2 * time.Second).WaitNavigation(proto.PageLifecycleEventNameDOMContentLoaded)()
 
 	// Wait for the window.onload event and also wait for the network requests
 	// to become idle for a maximum duration of 3 seconds. If the requests
@@ -440,7 +440,7 @@ func (p *Page) WaitLoad(act *Action, out map[string]string /*TODO review unused 
 func (p *Page) GetResource(act *Action, out map[string]string) error {
 	element, err := p.pageElementBy(act.Data)
 	if err != nil {
-		return errors.Wrap(err, errCouldNotGetElement)
+		return errors.Wrap(err, couldNotGetElementErrorMessage)
 	}
 	resource, err := element.Resource()
 	if err != nil {
@@ -456,10 +456,10 @@ func (p *Page) GetResource(act *Action, out map[string]string) error {
 func (p *Page) FilesInput(act *Action, out map[string]string /*TODO review unused parameter*/) error {
 	element, err := p.pageElementBy(act.Data)
 	if err != nil {
-		return errors.Wrap(err, errCouldNotGetElement)
+		return errors.Wrap(err, couldNotGetElementErrorMessage)
 	}
 	if err = element.ScrollIntoView(); err != nil {
-		return errors.Wrap(err, errCouldNotScroll)
+		return errors.Wrap(err, couldNotScrollErrorMessage)
 	}
 	value := p.getActionArgWithDefaultValues(act, "value")
 	filesPaths := strings.Split(value, ",")
@@ -473,10 +473,10 @@ func (p *Page) FilesInput(act *Action, out map[string]string /*TODO review unuse
 func (p *Page) ExtractElement(act *Action, out map[string]string) error {
 	element, err := p.pageElementBy(act.Data)
 	if err != nil {
-		return errors.Wrap(err, errCouldNotGetElement)
+		return errors.Wrap(err, couldNotGetElementErrorMessage)
 	}
 	if err = element.ScrollIntoView(); err != nil {
-		return errors.Wrap(err, errCouldNotScroll)
+		return errors.Wrap(err, couldNotScrollErrorMessage)
 	}
 	switch p.getActionArgWithDefaultValues(act, "target") {
 	case "attribute":
@@ -605,11 +605,15 @@ func selectorBy(selector string) rod.SelectorType {
 	}
 }
 
+var (
+	urlWithPortRegex = regexp.MustCompile(`{{BaseURL}}:(\d+)`)
+)
+
 // baseURLWithTemplatePrefs returns the url for BaseURL keeping
 // the template port and path preference over the user provided one.
 func baseURLWithTemplatePrefs(data string, parsed *url.URL) (string, *url.URL) {
 	// template port preference over input URL port if template has a port
-	matches := reUrlWithPort.FindAllStringSubmatch(data, -1)
+	matches := urlWithPortRegex.FindAllStringSubmatch(data, -1)
 	if len(matches) == 0 {
 		return data, parsed
 	}
@@ -638,7 +642,7 @@ func (p *Page) getActionArgWithValues(action *Action, arg string, values map[str
 	argValue = replaceWithValues(argValue, values)
 	if p.instance.interactsh != nil {
 		var interactshURLs []string
-		argValue, interactshURLs = p.instance.interactsh.Replace(argValue, p.InteractshURLs)
+		argValue, interactshURLs = p.instance.interactsh.ReplaceMarkers(argValue, p.InteractshURLs)
 		p.addInteractshURL(interactshURLs...)
 	}
 	return argValue

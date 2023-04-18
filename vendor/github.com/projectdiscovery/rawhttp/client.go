@@ -3,12 +3,13 @@ package rawhttp
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
+	stdurl "net/url"
 	"strings"
 	"time"
 
 	retryablehttp "github.com/projectdiscovery/retryablehttp-go"
-	urlutil "github.com/projectdiscovery/utils/url"
 )
 
 // Client is a client for making raw http requests with go
@@ -114,7 +115,7 @@ func (c *Client) do(method, url, uripath string, headers map[string][]string, bo
 	if headers == nil {
 		headers = make(map[string][]string)
 	}
-	u, err := urlutil.ParseURL(url, true)
+	u, err := stdurl.ParseRequestURI(url)
 	if err != nil {
 		return nil, err
 	}
@@ -138,8 +139,8 @@ func (c *Client) do(method, url, uripath string, headers map[string][]string, bo
 	if path == "" {
 		path = "/"
 	}
-	if len(u.Params) > 0 {
-		path += "?" + u.Params.Encode()
+	if u.RawQuery != "" {
+		path += "?" + u.RawQuery
 	}
 	// override if custom one is specified
 	if uripath != "" {
@@ -179,7 +180,7 @@ func (c *Client) do(method, url, uripath string, headers map[string][]string, bo
 
 	if resp.Status.IsRedirect() && redirectstatus.FollowRedirects && redirectstatus.Current <= redirectstatus.MaxRedirects {
 		// consume the response body
-		_, err := io.Copy(io.Discard, r.Body)
+		_, err := io.Copy(ioutil.Discard, r.Body)
 		if err := firstErr(err, r.Body.Close()); err != nil {
 			return nil, err
 		}

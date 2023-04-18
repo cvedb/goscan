@@ -46,7 +46,7 @@ func (p ErrorTrackingClientKey) String() string {
 
 // ErrorTrackingSettings represents error tracking settings for a GitLab project.
 //
-// GitLab API docs: https://docs.gitlab.com/ee/api/error_tracking.html#error-tracking-project-settings
+// GitLab API docs: https://docs.gitlab.com/ee/api/error_tracking.html
 type ErrorTrackingSettings struct {
 	Active            bool   `json:"active"`
 	ProjectName       string `json:"project_name"`

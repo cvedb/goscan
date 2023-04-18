@@ -2,11 +2,12 @@ package rawhttp
 
 import (
 	"io"
+	"io/ioutil"
 	"net/http"
+	stdurl "net/url"
 
 	"github.com/projectdiscovery/rawhttp/clientpipeline"
 	retryablehttp "github.com/projectdiscovery/retryablehttp-go"
-	urlutil "github.com/projectdiscovery/utils/url"
 )
 
 // PipelineClient is a client for making pipelined http requests
@@ -80,7 +81,7 @@ func (c *PipelineClient) do(method, url, uripath string, headers map[string][]st
 	if headers == nil {
 		headers = make(map[string][]string)
 	}
-	u, err := urlutil.ParseURL(url, true)
+	u, err := stdurl.ParseRequestURI(url)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +90,8 @@ func (c *PipelineClient) do(method, url, uripath string, headers map[string][]st
 	if path == "" {
 		path = "/"
 	}
-	if len(u.Params) > 0 {
-		path += "?" + u.Params.Encode()
+	if u.RawQuery != "" {
+		path += "?" + u.RawQuery
 	}
 	// override if custom one is specified
 	if uripath != "" {
@@ -113,7 +114,7 @@ func (c *PipelineClient) do(method, url, uripath string, headers map[string][]st
 		r.Header.Set(header.Key, header.Value)
 	}
 
-	r.Body = io.NopCloser(resp.Body)
+	r.Body = ioutil.NopCloser(resp.Body)
 
 	return &r, err
 }

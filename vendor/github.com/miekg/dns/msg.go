@@ -448,7 +448,7 @@ Loop:
 	return string(s), off1, nil
 }
 
-func packTxt(txt []string, msg []byte, offset int) (int, error) {
+func packTxt(txt []string, msg []byte, offset int, tmp []byte) (int, error) {
 	if len(txt) == 0 {
 		if offset >= len(msg) {
 			return offset, ErrBuf
@@ -458,7 +458,10 @@ func packTxt(txt []string, msg []byte, offset int) (int, error) {
 	}
 	var err error
 	for _, s := range txt {
-		offset, err = packTxtString(s, msg, offset)
+		if len(s) > len(tmp) {
+			return offset, ErrBuf
+		}
+		offset, err = packTxtString(s, msg, offset, tmp)
 		if err != nil {
 			return offset, err
 		}
@@ -466,30 +469,32 @@ func packTxt(txt []string, msg []byte, offset int) (int, error) {
 	return offset, nil
 }
 
-func packTxtString(s string, msg []byte, offset int) (int, error) {
+func packTxtString(s string, msg []byte, offset int, tmp []byte) (int, error) {
 	lenByteOffset := offset
-	if offset >= len(msg) || len(s) > 256*4+1 /* If all \DDD */ {
+	if offset >= len(msg) || len(s) > len(tmp) {
 		return offset, ErrBuf
 	}
 	offset++
-	for i := 0; i < len(s); i++ {
+	bs := tmp[:len(s)]
+	copy(bs, s)
+	for i := 0; i < len(bs); i++ {
 		if len(msg) <= offset {
 			return offset, ErrBuf
 		}
-		if s[i] == '\\' {
+		if bs[i] == '\\' {
 			i++
-			if i == len(s) {
+			if i == len(bs) {
 				break
 			}
 			// check for \DDD
-			if i+2 < len(s) && isDigit(s[i]) && isDigit(s[i+1]) && isDigit(s[i+2]) {
-				msg[offset] = dddStringToByte(s[i:])
+			if i+2 < len(bs) && isDigit(bs[i]) && isDigit(bs[i+1]) && isDigit(bs[i+2]) {
+				msg[offset] = dddToByte(bs[i:])
 				i += 2
 			} else {
-				msg[offset] = s[i]
+				msg[offset] = bs[i]
 			}
 		} else {
-			msg[offset] = s[i]
+			msg[offset] = bs[i]
 		}
 		offset++
 	}
@@ -675,9 +680,9 @@ func unpackRRslice(l int, msg []byte, off int) (dst1 []RR, off1 int, err error) 
 
 // Convert a MsgHdr to a string, with dig-like headers:
 //
-// ;; opcode: QUERY, status: NOERROR, id: 48404
+//;; opcode: QUERY, status: NOERROR, id: 48404
 //
-// ;; flags: qr aa rd ra;
+//;; flags: qr aa rd ra;
 func (h *MsgHdr) String() string {
 	if h == nil {
 		return "<nil> MsgHdr"
@@ -1060,8 +1065,8 @@ func (dns *Msg) CopyTo(r1 *Msg) *Msg {
 	r1.Compress = dns.Compress
 
 	if len(dns.Question) > 0 {
-		// TODO(miek): Question is an immutable value, ok to do a shallow-copy
-		r1.Question = cloneSlice(dns.Question)
+		r1.Question = make([]Question, len(dns.Question))
+		copy(r1.Question, dns.Question) // TODO(miek): Question is an immutable value, ok to do a shallow-copy
 	}
 
 	rrArr := make([]RR, len(dns.Answer)+len(dns.Ns)+len(dns.Extra))

@@ -1,25 +1,23 @@
 package parsers
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/projectdiscovery/nuclei/v2/pkg/catalog"
-	"github.com/projectdiscovery/nuclei/v2/pkg/catalog/config"
 	"github.com/projectdiscovery/nuclei/v2/pkg/catalog/loader/filter"
 	"github.com/projectdiscovery/nuclei/v2/pkg/templates"
 	"github.com/projectdiscovery/nuclei/v2/pkg/templates/cache"
-	"github.com/projectdiscovery/nuclei/v2/pkg/templates/signer"
 	"github.com/projectdiscovery/nuclei/v2/pkg/utils"
 	"github.com/projectdiscovery/nuclei/v2/pkg/utils/stats"
-	"gopkg.in/yaml.v2"
 )
 
 const (
-	errMandatoryFieldMissingFmt = "mandatory '%s' field is missing"
-	errInvalidFieldFmt          = "invalid field format for '%s' (allowed format is %s)"
+	mandatoryFieldMissingTemplate = "mandatory '%s' field is missing"
+	invalidFieldFormatTemplate    = "invalid field format for '%s' (allowed format is %s)"
 )
 
 // LoadTemplate returns true if the template is valid and matches the filtering criteria.
@@ -74,17 +72,17 @@ func validateTemplateFields(template *templates.Template) error {
 	var errors []string
 
 	if utils.IsBlank(info.Name) {
-		errors = append(errors, fmt.Sprintf(errMandatoryFieldMissingFmt, "name"))
+		errors = append(errors, fmt.Sprintf(mandatoryFieldMissingTemplate, "name"))
 	}
 
 	if info.Authors.IsEmpty() {
-		errors = append(errors, fmt.Sprintf(errMandatoryFieldMissingFmt, "author"))
+		errors = append(errors, fmt.Sprintf(mandatoryFieldMissingTemplate, "author"))
 	}
 
 	if template.ID == "" {
-		errors = append(errors, fmt.Sprintf(errMandatoryFieldMissingFmt, "id"))
+		errors = append(errors, fmt.Sprintf(mandatoryFieldMissingTemplate, "id"))
 	} else if !templateIDRegexp.MatchString(template.ID) {
-		errors = append(errors, fmt.Sprintf(errInvalidFieldFmt, "id", templateIDRegexp.String()))
+		errors = append(errors, fmt.Sprintf(invalidFieldFormatTemplate, "id", templateIDRegexp.String()))
 	}
 
 	if len(errors) > 0 {
@@ -108,6 +106,7 @@ const (
 )
 
 func init() {
+
 	parsedTemplatesCache = cache.New()
 
 	stats.NewEntry(SyntaxWarningStats, "Found %d templates with syntax warning (use -validate flag for further examination)")
@@ -126,29 +125,15 @@ func ParseTemplate(templatePath string, catalog catalog.Catalog) (*templates.Tem
 	}
 
 	template := &templates.Template{}
-
-	// check if the template is verified
-	if signer.DefaultVerifier != nil {
-		template.Verified, _ = signer.Verify(signer.DefaultVerifier, data)
-	}
-
-	switch config.GetTemplateFormatFromExt(templatePath) {
-	case config.JSON:
-		err = json.Unmarshal(data, template)
-	case config.YAML:
-		if NoStrictSyntax {
-			err = yaml.Unmarshal(data, template)
-		} else {
-			err = yaml.UnmarshalStrict(data, template)
-		}
-	default:
-		err = fmt.Errorf("failed to identify template format expected JSON or YAML but got %v", templatePath)
+	if NoStrictSyntax {
+		err = yaml.Unmarshal(data, template)
+	} else {
+		err = yaml.UnmarshalStrict(data, template)
 	}
 	if err != nil {
 		stats.Increment(SyntaxErrorStats)
 		return nil, err
 	}
-
 	parsedTemplatesCache.Store(templatePath, template, nil)
 	return template, nil
 }

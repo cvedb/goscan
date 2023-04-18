@@ -6,6 +6,7 @@ linters:
     - gofmt
     - revive
     - gocyclo
+    - misspell
     - bodyclose
 
 gocyclo:
@@ -20,7 +21,3 @@ issues:
       source: "// \\+build !windows"
       linters:
         - gofmt
-
-    - source: 'io/ioutil'
-      linters:
-        - staticcheck

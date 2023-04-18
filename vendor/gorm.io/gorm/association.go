@@ -353,13 +353,9 @@ func (association *Association) saveAssociation(clear bool, values ...interface{
 			}
 		case schema.HasMany, schema.Many2Many:
 			elemType := association.Relationship.Field.IndirectFieldType.Elem()
-			oldFieldValue := reflect.Indirect(association.Relationship.Field.ReflectValueOf(association.DB.Statement.Context, source))
-			var fieldValue reflect.Value
+			fieldValue := reflect.Indirect(association.Relationship.Field.ReflectValueOf(association.DB.Statement.Context, source))
 			if clear {
-				fieldValue = reflect.MakeSlice(oldFieldValue.Type(), 0, oldFieldValue.Cap())
-			} else {
-				fieldValue = reflect.MakeSlice(oldFieldValue.Type(), oldFieldValue.Len(), oldFieldValue.Cap())
-				reflect.Copy(fieldValue, oldFieldValue)
+				fieldValue = reflect.New(association.Relationship.Field.IndirectFieldType).Elem()
 			}
 
 			appendToFieldValues := func(ev reflect.Value) {

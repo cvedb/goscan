@@ -1,5 +1,5 @@
-//go:build (darwin && !cgo) || ios
-// +build darwin,!cgo ios
+//go:build darwin && !cgo
+// +build darwin,!cgo
 
 package disk
 

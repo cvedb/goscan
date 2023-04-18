@@ -3,14 +3,12 @@ package launcher
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -96,12 +94,6 @@ type Browser struct {
 
 	// LockPort a tcp port to prevent race downloading. Default is 2968 .
 	LockPort int
-
-	// Proxy to use (http/socks5). Default is nil.
-	proxyURL *url.URL
-
-	// IgnoreCerts skips proxy certificate validation
-	IgnoreCerts bool
 }
 
 // NewBrowser with default values
@@ -143,16 +135,6 @@ func (lc *Browser) Download() (err error) {
 	}
 
 	return lc.download(lc.Context, u)
-}
-
-// Proxy sets the proxy for chrome download
-func (lc *Browser) Proxy(URL string) error {
-	proxyURL, err := url.Parse(URL)
-	if err != nil {
-		return err
-	}
-	lc.proxyURL = proxyURL
-	return err
 }
 
 func (lc *Browser) fastestHost() (fastest string, err error) {
@@ -247,26 +229,15 @@ func (lc *Browser) download(ctx context.Context, u string) error {
 }
 
 func (lc *Browser) httpClient() *http.Client {
-	transport := &http.Transport{
-		DisableKeepAlives: true,
-	}
-	if lc.IgnoreCerts {
-		transport.TLSClientConfig = &tls.Config{
-			InsecureSkipVerify: true,
-		}
-	}
-	if lc.proxyURL != nil {
-		transport.Proxy = http.ProxyURL(lc.proxyURL)
-	}
-	return &http.Client{Transport: transport}
+	return &http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
 }
 
 // Get is a smart helper to get the browser executable path.
-// If Destination is not valid it will auto download the browser to Destination.
+// If Destination doesn't exists it will download the browser to Destination.
 func (lc *Browser) Get() (string, error) {
 	defer leakless.LockPort(lc.LockPort)()
 
-	if lc.Validate() == nil {
+	if lc.Exists() {
 		return lc.Destination(), nil
 	}
 
@@ -280,30 +251,21 @@ func (lc *Browser) MustGet() string {
 	return p
 }
 
-// Validate returns nil if the browser executable valid.
-// If the executable is malformed it will return error.
-func (lc *Browser) Validate() error {
+// Exists returns true if the browser executable path exists.
+// If the executable is malformed it will return false.
+func (lc *Browser) Exists() bool {
 	_, err := os.Stat(lc.Destination())
 	if err != nil {
-		return err
+		return false
 	}
 
 	cmd := exec.Command(lc.Destination(), "--headless", "--no-sandbox",
 		"--disable-gpu", "--dump-dom", "about:blank")
 	b, err := cmd.CombinedOutput()
 	if err != nil {
-		if strings.Contains(string(b), "error while loading shared libraries") {
-			// When the os is missing some dependencies for chromium we treat it as valid binary.
-			return nil
-		}
-
-		return fmt.Errorf("failed to run the browser: %w\n%s", err, b)
+		return false
 	}
-	if !bytes.Contains(b, []byte(`<html><head></head><body></body></html>`)) {
-		return errors.New("the browser executable doesn't support headless mode")
-	}
-
-	return nil
+	return bytes.Contains(b, []byte(`<html><head></head><body></body></html>`))
 }
 
 // LookPath searches for the browser executable from often used paths on current operating system.

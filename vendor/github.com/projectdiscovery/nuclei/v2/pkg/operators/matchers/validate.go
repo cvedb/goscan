@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 
-	sliceutil "github.com/projectdiscovery/utils/slice"
+	"github.com/projectdiscovery/sliceutil"
 	"gopkg.in/yaml.v3"
 )
 

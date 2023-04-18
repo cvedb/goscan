@@ -225,22 +225,22 @@ func (p *Page) Expose(name string, fn func(gson.JSON) (interface{}, error)) (sto
 }
 
 func (p *Page) formatArgs(opts *EvalOptions) ([]*proto.RuntimeCallArgument, error) {
-	formatted := []*proto.RuntimeCallArgument{}
+	formated := []*proto.RuntimeCallArgument{}
 	for _, arg := range opts.JSArgs {
 		if obj, ok := arg.(*proto.RuntimeRemoteObject); ok { // remote object
-			formatted = append(formatted, &proto.RuntimeCallArgument{ObjectID: obj.ObjectID})
+			formated = append(formated, &proto.RuntimeCallArgument{ObjectID: obj.ObjectID})
 		} else if obj, ok := arg.(*js.Function); ok { // js helper
 			id, err := p.ensureJSHelper(obj)
 			if err != nil {
 				return nil, err
 			}
-			formatted = append(formatted, &proto.RuntimeCallArgument{ObjectID: id})
+			formated = append(formated, &proto.RuntimeCallArgument{ObjectID: id})
 		} else { // plain json data
-			formatted = append(formatted, &proto.RuntimeCallArgument{Value: gson.New(arg)})
+			formated = append(formated, &proto.RuntimeCallArgument{Value: gson.New(arg)})
 		}
 	}
 
-	return formatted, nil
+	return formated, nil
 }
 
 // Check the doc of EvalHelper

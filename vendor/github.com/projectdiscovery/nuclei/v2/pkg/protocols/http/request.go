@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httputil"
-	"path"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -22,22 +22,19 @@ import (
 	"github.com/projectdiscovery/nuclei/v2/pkg/operators"
 	"github.com/projectdiscovery/nuclei/v2/pkg/output"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols"
-	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/contextargs"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/expressions"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/generators"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/helpers/eventcreator"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/helpers/responsehighlighter"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/interactsh"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/tostring"
-	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/http/fuzz"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/http/httpclientpool"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/http/signer"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/http/signerpool"
 	templateTypes "github.com/projectdiscovery/nuclei/v2/pkg/templates/types"
 	"github.com/projectdiscovery/nuclei/v2/pkg/types"
 	"github.com/projectdiscovery/rawhttp"
-	stringsutil "github.com/projectdiscovery/utils/strings"
-	urlutil "github.com/projectdiscovery/utils/url"
+	"github.com/projectdiscovery/stringsutil"
 )
 
 const defaultMaxWorkers = 150
@@ -48,20 +45,18 @@ func (request *Request) Type() templateTypes.ProtocolType {
 }
 
 // executeRaceRequest executes race condition request for a URL
-func (request *Request) executeRaceRequest(input *contextargs.Context, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
-	reqURL := input.MetaInput.Input
+func (request *Request) executeRaceRequest(reqURL string, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
 	var generatedRequests []*generatedRequest
 
 	// Requests within race condition should be dumped once and the output prefilled to allow DSL language to work
 	// This will introduce a delay and will populate in hacky way the field "request" of outputEvent
-	generator := request.newGenerator(false)
+	generator := request.newGenerator()
 
 	inputData, payloads, ok := generator.nextValue()
 	if !ok {
 		return nil
 	}
-	ctx := request.newContext(input)
-	requestForDump, err := generator.Make(ctx, input, inputData, payloads, nil)
+	requestForDump, err := generator.Make(context.Background(), reqURL, inputData, payloads, nil)
 	if err != nil {
 		return err
 	}
@@ -84,13 +79,12 @@ func (request *Request) executeRaceRequest(input *contextargs.Context, previous 
 
 	// Pre-Generate requests
 	for i := 0; i < request.RaceNumberRequests; i++ {
-		generator := request.newGenerator(false)
+		generator := request.newGenerator()
 		inputData, payloads, ok := generator.nextValue()
 		if !ok {
 			break
 		}
-		ctx := request.newContext(input)
-		generatedRequest, err := generator.Make(ctx, input, inputData, payloads, nil)
+		generatedRequest, err := generator.Make(context.Background(), reqURL, inputData, payloads, nil)
 		if err != nil {
 			return err
 		}
@@ -104,7 +98,7 @@ func (request *Request) executeRaceRequest(input *contextargs.Context, previous 
 		wg.Add(1)
 		go func(httpRequest *generatedRequest) {
 			defer wg.Done()
-			err := request.executeRequest(input, httpRequest, previous, false, callback, 0)
+			err := request.executeRequest(reqURL, httpRequest, previous, false, callback, 0)
 			mutex.Lock()
 			if err != nil {
 				requestErr = multierr.Append(requestErr, err)
@@ -119,8 +113,9 @@ func (request *Request) executeRaceRequest(input *contextargs.Context, previous 
 }
 
 // executeRaceRequest executes parallel requests for a template
-func (request *Request) executeParallelHTTP(input *contextargs.Context, dynamicValues output.InternalEvent, callback protocols.OutputEventCallback) error {
-	generator := request.newGenerator(false)
+func (request *Request) executeParallelHTTP(reqURL string, dynamicValues output.InternalEvent, callback protocols.OutputEventCallback) error {
+	generator := request.newGenerator()
+
 	// Workers that keeps enqueuing new requests
 	maxWorkers := request.Threads
 	swg := sizedwaitgroup.New(maxWorkers)
@@ -132,8 +127,7 @@ func (request *Request) executeParallelHTTP(input *contextargs.Context, dynamicV
 		if !ok {
 			break
 		}
-		ctx := request.newContext(input)
-		generatedHttpRequest, err := generator.Make(ctx, input, inputData, payloads, dynamicValues)
+		generatedHttpRequest, err := generator.Make(context.Background(), reqURL, inputData, payloads, dynamicValues)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -141,8 +135,8 @@ func (request *Request) executeParallelHTTP(input *contextargs.Context, dynamicV
 			request.options.Progress.IncrementFailedRequestsBy(int64(generator.Total()))
 			return err
 		}
-		if input.MetaInput.Input == "" {
-			input.MetaInput.Input = generatedHttpRequest.URL()
+		if reqURL == "" {
+			reqURL = generatedHttpRequest.URL()
 		}
 		swg.Add()
 		go func(httpRequest *generatedRequest) {
@@ -151,7 +145,7 @@ func (request *Request) executeParallelHTTP(input *contextargs.Context, dynamicV
 			request.options.RateLimiter.Take()
 
 			previous := make(map[string]interface{})
-			err := request.executeRequest(input, httpRequest, previous, false, callback, 0)
+			err := request.executeRequest(reqURL, httpRequest, previous, false, callback, 0)
 			mutex.Lock()
 			if err != nil {
 				requestErr = multierr.Append(requestErr, err)
@@ -165,11 +159,11 @@ func (request *Request) executeParallelHTTP(input *contextargs.Context, dynamicV
 }
 
 // executeTurboHTTP executes turbo http request for a URL
-func (request *Request) executeTurboHTTP(input *contextargs.Context, dynamicValues, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
-	generator := request.newGenerator(false)
+func (request *Request) executeTurboHTTP(reqURL string, dynamicValues, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
+	generator := request.newGenerator()
 
 	// need to extract the target from the url
-	URL, err := urlutil.Parse(input.MetaInput.Input)
+	URL, err := url.Parse(reqURL)
 	if err != nil {
 		return err
 	}
@@ -200,21 +194,20 @@ func (request *Request) executeTurboHTTP(input *contextargs.Context, dynamicValu
 		if !ok {
 			break
 		}
-		ctx := request.newContext(input)
-		generatedHttpRequest, err := generator.Make(ctx, input, inputData, payloads, dynamicValues)
+		generatedHttpRequest, err := generator.Make(context.Background(), reqURL, inputData, payloads, dynamicValues)
 		if err != nil {
 			request.options.Progress.IncrementFailedRequestsBy(int64(generator.Total()))
 			return err
 		}
-		if input.MetaInput.Input == "" {
-			input.MetaInput.Input = generatedHttpRequest.URL()
+		if reqURL == "" {
+			reqURL = generatedHttpRequest.URL()
 		}
 		generatedHttpRequest.pipelinedClient = pipeClient
 		swg.Add()
 		go func(httpRequest *generatedRequest) {
 			defer swg.Done()
 
-			err := request.executeRequest(input, httpRequest, previous, false, callback, 0)
+			err := request.executeRequest(reqURL, httpRequest, previous, false, callback, 0)
 			mutex.Lock()
 			if err != nil {
 				requestErr = multierr.Append(requestErr, err)
@@ -227,117 +220,28 @@ func (request *Request) executeTurboHTTP(input *contextargs.Context, dynamicValu
 	return requestErr
 }
 
-// executeFuzzingRule executes fuzzing request for a URL
-func (request *Request) executeFuzzingRule(input *contextargs.Context, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
-	parsed, err := urlutil.Parse(input.MetaInput.Input)
-	if err != nil {
-		return errors.Wrap(err, "could not parse url")
-	}
-	fuzzRequestCallback := func(gr fuzz.GeneratedRequest) bool {
-		hasInteractMatchers := interactsh.HasMatchers(request.CompiledOperators)
-		hasInteractMarkers := len(gr.InteractURLs) > 0
-		if request.options.HostErrorsCache != nil && request.options.HostErrorsCache.Check(input.MetaInput.Input) {
-			return false
-		}
-
-		req := &generatedRequest{
-			request:        gr.Request,
-			dynamicValues:  gr.DynamicValues,
-			interactshURLs: gr.InteractURLs,
-			original:       request,
-		}
-		var gotMatches bool
-		requestErr := request.executeRequest(input, req, gr.DynamicValues, hasInteractMatchers, func(event *output.InternalWrappedEvent) {
-			// Add the extracts to the dynamic values if any.
-			if event.OperatorsResult != nil {
-				gotMatches = event.OperatorsResult.Matched
-			}
-			if hasInteractMarkers && hasInteractMatchers && request.options.Interactsh != nil {
-				request.options.Interactsh.RequestEvent(gr.InteractURLs, &interactsh.RequestData{
-					MakeResultFunc: request.MakeResultEvent,
-					Event:          event,
-					Operators:      request.CompiledOperators,
-					MatchFunc:      request.Match,
-					ExtractFunc:    request.Extract,
-				})
-			} else {
-				callback(event)
-			}
-		}, 0)
-		// If a variable is unresolved, skip all further requests
-		if requestErr == errStopExecution {
-			return false
-		}
-		if requestErr != nil {
-			if request.options.HostErrorsCache != nil {
-				request.options.HostErrorsCache.MarkFailed(input.MetaInput.Input, requestErr)
-			}
-		}
-		request.options.Progress.IncrementRequests()
-
-		// If this was a match, and we want to stop at first match, skip all further requests.
-		if (request.options.Options.StopAtFirstMatch || request.StopAtFirstMatch) && gotMatches {
-			return false
-		}
-		return true
-	}
-
-	// Iterate through all requests for template and queue them for fuzzing
-	generator := request.newGenerator(true)
-	for {
-		value, payloads, result := generator.nextValue()
-		if !result {
-			break
-		}
-		generated, err := generator.Make(context.Background(), input, value, payloads, nil)
-		if err != nil {
-			continue
-		}
-		for _, rule := range request.Fuzzing {
-			err = rule.Execute(&fuzz.ExecuteRuleInput{
-				URL:         parsed,
-				Callback:    fuzzRequestCallback,
-				Values:      generated.dynamicValues,
-				BaseRequest: generated.request,
-			})
-			if err == io.EOF {
-				return nil
-			}
-			if err != nil {
-				return errors.Wrap(err, "could not execute rule")
-			}
-		}
-	}
-	return nil
-}
-
 // ExecuteWithResults executes the final request on a URL
-func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicValues, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
+func (request *Request) ExecuteWithResults(reqURL string, dynamicValues, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
 	if request.Pipeline || request.Race && request.RaceNumberRequests > 0 || request.Threads > 0 {
 		variablesMap := request.options.Variables.Evaluate(generators.MergeMaps(dynamicValues, previous))
 		dynamicValues = generators.MergeMaps(variablesMap, dynamicValues)
 	}
 	// verify if pipeline was requested
 	if request.Pipeline {
-		return request.executeTurboHTTP(input, dynamicValues, previous, callback)
+		return request.executeTurboHTTP(reqURL, dynamicValues, previous, callback)
 	}
 
 	// verify if a basic race condition was requested
 	if request.Race && request.RaceNumberRequests > 0 {
-		return request.executeRaceRequest(input, dynamicValues, callback)
+		return request.executeRaceRequest(reqURL, dynamicValues, callback)
 	}
 
 	// verify if parallel elaboration was requested
 	if request.Threads > 0 {
-		return request.executeParallelHTTP(input, dynamicValues, callback)
+		return request.executeParallelHTTP(reqURL, dynamicValues, callback)
 	}
 
-	// verify if fuzz elaboration was requested
-	if len(request.Fuzzing) > 0 {
-		return request.executeFuzzingRule(input, dynamicValues, callback)
-	}
-
-	generator := request.newGenerator(false)
+	generator := request.newGenerator()
 
 	var gotDynamicValues map[string][]string
 	var requestErr error
@@ -348,12 +252,10 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 			variablesMap, interactURLs := request.options.Variables.EvaluateWithInteractsh(generators.MergeMaps(dynamicValues, payloads), request.options.Interactsh)
 			dynamicValue = generators.MergeMaps(variablesMap, dynamicValue)
 
-			request.options.RateLimiter.Take()
-
-			ctx := request.newContext(input)
-			ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Duration(request.options.Options.Timeout)*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(request.options.Options.Timeout)*time.Second)
 			defer cancel()
-			generatedHttpRequest, err := generator.Make(ctxWithTimeout, input, data, payloads, dynamicValue)
+
+			generatedHttpRequest, err := generator.Make(ctx, reqURL, data, payloads, dynamicValue)
 			if err != nil {
 				if err == io.EOF {
 					return true, nil
@@ -361,25 +263,22 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 				request.options.Progress.IncrementFailedRequestsBy(int64(generator.Total()))
 				return true, err
 			}
-
-			if generatedHttpRequest.customCancelFunction != nil {
-				defer generatedHttpRequest.customCancelFunction()
-			}
-
 			// If the variables contain interactsh urls, use them
 			if len(interactURLs) > 0 {
 				generatedHttpRequest.interactshURLs = append(generatedHttpRequest.interactshURLs, interactURLs...)
 			}
 			hasInteractMarkers := interactsh.HasMarkers(data) || len(generatedHttpRequest.interactshURLs) > 0
-			if input.MetaInput.Input == "" {
-				input.MetaInput.Input = generatedHttpRequest.URL()
+			if reqURL == "" {
+				reqURL = generatedHttpRequest.URL()
 			}
 			// Check if hosts keep erroring
-			if request.options.HostErrorsCache != nil && request.options.HostErrorsCache.Check(input.MetaInput.ID()) {
+			if request.options.HostErrorsCache != nil && request.options.HostErrorsCache.Check(reqURL) {
 				return true, nil
 			}
 			var gotMatches bool
-			err = request.executeRequest(input, generatedHttpRequest, previous, hasInteractMatchers, func(event *output.InternalWrappedEvent) {
+			request.options.RateLimiter.Take()
+
+			err = request.executeRequest(reqURL, generatedHttpRequest, previous, hasInteractMatchers, func(event *output.InternalWrappedEvent) {
 				// Add the extracts to the dynamic values if any.
 				if event.OperatorsResult != nil {
 					gotMatches = event.OperatorsResult.Matched
@@ -393,13 +292,9 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 						MatchFunc:      request.Match,
 						ExtractFunc:    request.Extract,
 					})
+				} else {
+					callback(event)
 				}
-				// Note: This is a race condition prone zone i.e when request has interactsh_matchers
-				// Interactsh.RequestEvent tries to access/update output.InternalWrappedEvent depending on logic
-				// to avoid conflicts with `callback` mutex is used here and in Interactsh.RequestEvent
-				// Note: this only happens if requests > 1 and interactsh matcher is used
-				// TODO: interactsh logic in nuclei needs to be refactored to avoid such situations
-				callback(event)
 			}, generator.currentIndex)
 
 			// If a variable is unresolved, skip all further requests
@@ -408,7 +303,7 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 			}
 			if err != nil {
 				if request.options.HostErrorsCache != nil {
-					request.options.HostErrorsCache.MarkFailed(input.MetaInput.ID(), err)
+					request.options.HostErrorsCache.MarkFailed(reqURL, err)
 				}
 				requestErr = err
 			}
@@ -452,17 +347,11 @@ const drainReqSize = int64(8 * 1024)
 var errStopExecution = errors.New("stop execution due to unresolved variables")
 
 // executeRequest executes the actual generated request and returns error if occurred
-func (request *Request) executeRequest(input *contextargs.Context, generatedRequest *generatedRequest, previousEvent output.InternalEvent, hasInteractMatchers bool, callback protocols.OutputEventCallback, requestCount int) error {
+func (request *Request) executeRequest(reqURL string, generatedRequest *generatedRequest, previousEvent output.InternalEvent, hasInteractMatchers bool, callback protocols.OutputEventCallback, requestCount int) error {
 	request.setCustomHeaders(generatedRequest)
 
 	// Try to evaluate any payloads before replacement
 	finalMap := generators.MergeMaps(generatedRequest.dynamicValues, generatedRequest.meta)
-
-	// add known variables from metainput
-	if _, ok := finalMap["ip"]; !ok && input.MetaInput.CustomIP != "" {
-		finalMap["ip"] = input.MetaInput.CustomIP
-	}
-
 	for payloadName, payloadValue := range generatedRequest.dynamicValues {
 		if data, err := expressions.Evaluate(types.ToString(payloadValue), finalMap); err == nil {
 			generatedRequest.dynamicValues[payloadName] = data
@@ -486,7 +375,7 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 	if !generatedRequest.original.Race {
 		var dumpError error
 		// TODO: dump is currently not working with post-processors - somehow it alters the signature
-		dumpedRequest, dumpError = dump(generatedRequest, input.MetaInput.Input)
+		dumpedRequest, dumpError = dump(generatedRequest, reqURL)
 		if dumpError != nil {
 			return dumpError
 		}
@@ -494,12 +383,12 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 
 		if ignoreList := GetVariablesNamesSkipList(generatedRequest.original.Signature.Value); ignoreList != nil {
 			if varErr := expressions.ContainsVariablesWithIgnoreList(ignoreList, dumpedRequestString); varErr != nil && !request.SkipVariablesCheck {
-				gologger.Warning().Msgf("[%s] Could not make http request for %s: %v\n", request.options.TemplateID, input.MetaInput.Input, varErr)
+				gologger.Warning().Msgf("[%s] Could not make http request for %s: %v\n", request.options.TemplateID, reqURL, varErr)
 				return errStopExecution
 			}
 		} else { // Check if are there any unresolved variables. If yes, skip unless overridden by user.
 			if varErr := expressions.ContainsUnresolvedVariables(dumpedRequestString); varErr != nil && !request.SkipVariablesCheck {
-				gologger.Warning().Msgf("[%s] Could not make http request for %s: %v\n", request.options.TemplateID, input.MetaInput.Input, varErr)
+				gologger.Warning().Msgf("[%s] Could not make http request for %s: %v\n", request.options.TemplateID, reqURL, varErr)
 				return errStopExecution
 			}
 		}
@@ -510,10 +399,10 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 	if generatedRequest.original.Pipeline {
 		if generatedRequest.rawRequest != nil {
 			formedURL = generatedRequest.rawRequest.FullURL
-			if parsed, parseErr := urlutil.ParseURL(formedURL, true); parseErr == nil {
+			if parsed, parseErr := url.Parse(formedURL); parseErr == nil {
 				hostname = parsed.Host
 			}
-			resp, err = generatedRequest.pipelinedClient.DoRaw(generatedRequest.rawRequest.Method, input.MetaInput.Input, generatedRequest.rawRequest.Path, generators.ExpandMapValues(generatedRequest.rawRequest.Headers), io.NopCloser(strings.NewReader(generatedRequest.rawRequest.Data)))
+			resp, err = generatedRequest.pipelinedClient.DoRaw(generatedRequest.rawRequest.Method, reqURL, generatedRequest.rawRequest.Path, generators.ExpandMapValues(generatedRequest.rawRequest.Headers), io.NopCloser(strings.NewReader(generatedRequest.rawRequest.Data)))
 		} else if generatedRequest.request != nil {
 			resp, err = generatedRequest.pipelinedClient.Dor(generatedRequest.request)
 		}
@@ -521,15 +410,9 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 		formedURL = generatedRequest.rawRequest.FullURL
 		// use request url as matched url if empty
 		if formedURL == "" {
-			urlx, err := urlutil.Parse(input.MetaInput.Input)
-			if err != nil {
-				formedURL = fmt.Sprintf("%s%s", formedURL, generatedRequest.rawRequest.Path)
-			} else {
-				urlx.Path = generatedRequest.rawRequest.Path
-				formedURL = fmt.Sprintf("%v://%v", urlx.Scheme, path.Join(urlx.Host, generatedRequest.rawRequest.Path))
-			}
+			formedURL = reqURL
 		}
-		if parsed, parseErr := urlutil.ParseURL(formedURL, true); parseErr == nil {
+		if parsed, parseErr := url.Parse(formedURL); parseErr == nil {
 			hostname = parsed.Host
 		}
 		options := *generatedRequest.original.rawhttpClient.Options
@@ -537,7 +420,7 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 		options.CustomRawBytes = generatedRequest.rawRequest.UnsafeRawBytes
 		options.ForceReadAllBody = request.ForceReadAllBody
 		options.SNI = request.options.Options.SNI
-		resp, err = generatedRequest.original.rawhttpClient.DoRawWithOptions(generatedRequest.rawRequest.Method, input.MetaInput.Input, generatedRequest.rawRequest.Path, generators.ExpandMapValues(generatedRequest.rawRequest.Headers), io.NopCloser(strings.NewReader(generatedRequest.rawRequest.Data)), &options)
+		resp, err = generatedRequest.original.rawhttpClient.DoRawWithOptions(generatedRequest.rawRequest.Method, reqURL, generatedRequest.rawRequest.Path, generators.ExpandMapValues(generatedRequest.rawRequest.Headers), io.NopCloser(strings.NewReader(generatedRequest.rawRequest.Data)), &options)
 	} else {
 		hostname = generatedRequest.request.URL.Host
 		formedURL = generatedRequest.request.URL.String()
@@ -554,32 +437,18 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 			if errSignature := request.handleSignature(generatedRequest); errSignature != nil {
 				return errSignature
 			}
-
-			httpclient := request.httpClient
-			if input.CookieJar != nil {
-				connConfiguration := request.connConfiguration
-				connConfiguration.Connection.SetCookieJar(input.CookieJar)
-				client, err := httpclientpool.Get(request.options.Options, connConfiguration)
-				if err != nil {
-					return errors.Wrap(err, "could not get http client")
-				}
-				httpclient = client
-			}
-			resp, err = httpclient.Do(generatedRequest.request)
+			resp, err = request.httpClient.Do(generatedRequest.request)
 		}
 	}
 	// use request url as matched url if empty
 	if formedURL == "" {
-		formedURL = input.MetaInput.Input
+		formedURL = reqURL
 	}
-
-	// converts whitespace and other chars that cannot be printed to url encoded values
-	formedURL = urlutil.URLEncodeWithEscapes(formedURL)
 
 	// Dump the requests containing all headers
 	if !generatedRequest.original.Race {
 		var dumpError error
-		dumpedRequest, dumpError = dump(generatedRequest, input.MetaInput.Input)
+		dumpedRequest, dumpError = dump(generatedRequest, reqURL)
 		if dumpError != nil {
 			return dumpError
 		}
@@ -592,7 +461,7 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 				gologger.Print().Msgf("%s", dumpedRequestString)
 			}
 			if request.options.Options.StoreResponse {
-				request.options.Output.WriteStoreDebugData(input.MetaInput.Input, request.options.TemplateID, request.Type().String(), fmt.Sprintf("%s\n%s", msg, dumpedRequestString))
+				request.options.Output.WriteStoreDebugData(reqURL, request.options.TemplateID, request.Type().String(), fmt.Sprintf("%s\n%s", msg, dumpedRequestString))
 			}
 		}
 	}
@@ -608,16 +477,11 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 		// If we have interactsh markers and request times out, still send
 		// a callback event so in case we receive an interaction, correlation is possible.
 		if hasInteractMatchers {
-			outputEvent := request.responseToDSLMap(&http.Response{}, input.MetaInput.Input, formedURL, tostring.UnsafeToString(dumpedRequest), "", "", "", 0, generatedRequest.meta)
+			outputEvent := request.responseToDSLMap(&http.Response{}, reqURL, formedURL, tostring.UnsafeToString(dumpedRequest), "", "", "", 0, generatedRequest.meta)
 			if i := strings.LastIndex(hostname, ":"); i != -1 {
 				hostname = hostname[:i]
 			}
-
-			if input.MetaInput.CustomIP != "" {
-				outputEvent["ip"] = input.MetaInput.CustomIP
-			} else {
-				outputEvent["ip"] = httpclientpool.Dialer.GetDialedIP(hostname)
-			}
+			outputEvent["ip"] = httpclientpool.Dialer.GetDialedIP(hostname)
 
 			event := &output.InternalWrappedEvent{InternalEvent: outputEvent}
 			if request.CompiledOperators != nil {
@@ -661,8 +525,6 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 		var bodyReader io.Reader
 		if request.MaxSize != 0 {
 			bodyReader = io.LimitReader(resp.Body, int64(request.MaxSize))
-		} else if request.options.Options.ResponseReadSize != 0 {
-			bodyReader = io.LimitReader(resp.Body, int64(request.options.Options.ResponseReadSize))
 		} else {
 			bodyReader = resp.Body
 		}
@@ -697,13 +559,9 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 		if response.resp == nil {
 			continue // Skip nil responses
 		}
-		matchedURL := input.MetaInput.Input
-		if generatedRequest.rawRequest != nil {
-			if generatedRequest.rawRequest.FullURL != "" {
-				matchedURL = generatedRequest.rawRequest.FullURL
-			} else {
-				matchedURL = formedURL
-			}
+		matchedURL := reqURL
+		if generatedRequest.rawRequest != nil && generatedRequest.rawRequest.FullURL != "" {
+			matchedURL = generatedRequest.rawRequest.FullURL
 		}
 		if generatedRequest.request != nil {
 			matchedURL = generatedRequest.request.URL.String()
@@ -716,16 +574,12 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 		}
 		finalEvent := make(output.InternalEvent)
 
-		outputEvent := request.responseToDSLMap(response.resp, input.MetaInput.Input, matchedURL, tostring.UnsafeToString(dumpedRequest), tostring.UnsafeToString(response.fullResponse), tostring.UnsafeToString(response.body), tostring.UnsafeToString(response.headers), duration, generatedRequest.meta)
+		outputEvent := request.responseToDSLMap(response.resp, reqURL, matchedURL, tostring.UnsafeToString(dumpedRequest), tostring.UnsafeToString(response.fullResponse), tostring.UnsafeToString(response.body), tostring.UnsafeToString(response.headers), duration, generatedRequest.meta)
 		if i := strings.LastIndex(hostname, ":"); i != -1 {
 			hostname = hostname[:i]
 		}
 		outputEvent["curl-command"] = curlCommand
-		if input.MetaInput.CustomIP != "" {
-			outputEvent["ip"] = input.MetaInput.CustomIP
-		} else {
-			outputEvent["ip"] = httpclientpool.Dialer.GetDialedIP(hostname)
-		}
+		outputEvent["ip"] = httpclientpool.Dialer.GetDialedIP(hostname)
 		if request.options.Interactsh != nil {
 			request.options.Interactsh.MakePlaceholders(generatedRequest.interactshURLs, outputEvent)
 		}
@@ -737,7 +591,7 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 		}
 
 		// Add to history the current request number metadata if asked by the user.
-		if request.NeedsRequestCondition() {
+		if request.ReqCondition {
 			for k, v := range outputEvent {
 				key := fmt.Sprintf("%s_%d", k, requestCount)
 				previousEvent[key] = v
@@ -756,7 +610,7 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 
 		responseContentType := resp.Header.Get("Content-Type")
 		isResponseTruncated := request.MaxSize > 0 && len(gotData) >= request.MaxSize
-		dumpResponse(event, request, response.fullResponse, formedURL, responseContentType, isResponseTruncated, input.MetaInput.Input)
+		dumpResponse(event, request, response.fullResponse, formedURL, responseContentType, isResponseTruncated, reqURL)
 
 		callback(event)
 
@@ -773,17 +627,27 @@ func (request *Request) handleSignature(generatedRequest *generatedRequest) erro
 	switch request.Signature.Value {
 	case AWSSignature:
 		var awsSigner signer.Signer
-		allvars := generators.MergeMaps(request.options.Options.Vars.AsMap(), generatedRequest.dynamicValues)
-		awsopts := signer.AWSOptions{
-			AwsID:          types.ToString(allvars["aws-id"]),
-			AwsSecretToken: types.ToString(allvars["aws-secret"]),
+		vars := request.options.Options.Vars.AsMap()
+		awsAccessKeyId := types.ToString(vars["aws-id"])
+		awsSecretAccessKey := types.ToString(vars["aws-secret"])
+		awsSignerArgs := signer.AwsSignerArgs{AwsId: awsAccessKeyId, AwsSecretToken: awsSecretAccessKey}
+		service := types.ToString(generatedRequest.dynamicValues["service"])
+		region := types.ToString(generatedRequest.dynamicValues["region"])
+		// if region is empty use default value
+		if region == "" {
+			region = types.ToString(signer.AwsDefaultVars["region"])
 		}
-		awsSigner, err := signerpool.Get(request.options.Options, &signerpool.Configuration{SignerArgs: &awsopts})
+		awsSignatureArguments := signer.AwsSignatureArguments{
+			Service: types.ToString(service),
+			Region:  types.ToString(region),
+			Time:    time.Now(),
+		}
+
+		awsSigner, err := signerpool.Get(request.options.Options, &signerpool.Configuration{SignerArgs: awsSignerArgs})
 		if err != nil {
 			return err
 		}
-		ctx := signer.GetCtxWithArgs(allvars, signer.AwsDefaultVars)
-		err = awsSigner.SignHTTP(ctx, generatedRequest.request.Request)
+		err = awsSigner.SignHTTP(generatedRequest.request.Request, awsSignatureArguments)
 		if err != nil {
 			return err
 		}
@@ -864,11 +728,4 @@ func (request *Request) pruneSignatureInternalValues(maps ...map[string]interfac
 			delete(m, fieldName)
 		}
 	}
-}
-
-func (request *Request) newContext(input *contextargs.Context) context.Context {
-	if input.MetaInput.CustomIP != "" {
-		return context.WithValue(context.Background(), "ip", input.MetaInput.CustomIP) //nolint
-	}
-	return context.Background()
 }

@@ -525,8 +525,6 @@ func easyjsonC5a4559bDecodeGithubComChromedpCdprotoTarget4(in *jlexer.Lexer, out
 			(out.OpenerFrameID).UnmarshalEasyJSON(in)
 		case "browserContextId":
 			out.BrowserContextID = cdp.BrowserContextID(in.String())
-		case "subtype":
-			out.Subtype = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -585,11 +583,6 @@ func easyjsonC5a4559bEncodeGithubComChromedpCdprotoTarget4(out *jwriter.Writer, 
 		const prefix string = ",\"browserContextId\":"
 		out.RawString(prefix)
 		out.String(string(in.BrowserContextID))
-	}
-	if in.Subtype != "" {
-		const prefix string = ",\"subtype\":"
-		out.RawString(prefix)
-		out.String(string(in.Subtype))
 	}
 	out.RawByte('}')
 }
@@ -2042,8 +2035,6 @@ func easyjsonC5a4559bDecodeGithubComChromedpCdprotoTarget23(in *jlexer.Lexer, ou
 			out.NewWindow = bool(in.Bool())
 		case "background":
 			out.Background = bool(in.Bool())
-		case "forTab":
-			out.ForTab = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -2092,11 +2083,6 @@ func easyjsonC5a4559bEncodeGithubComChromedpCdprotoTarget23(out *jwriter.Writer,
 		const prefix string = ",\"background\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.Background))
-	}
-	if in.ForTab {
-		const prefix string = ",\"forTab\":"
-		out.RawString(prefix)
-		out.Bool(bool(in.ForTab))
 	}
 	out.RawByte('}')
 }

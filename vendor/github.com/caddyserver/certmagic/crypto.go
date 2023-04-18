@@ -226,12 +226,14 @@ func (cfg *Config) loadCertResourceAnyIssuer(ctx context.Context, certNamesKey s
 		return certResources[j].decoded.NotBefore.Before(certResources[i].decoded.NotBefore)
 	})
 
-	cfg.Logger.Debug("loading managed certificate",
-		zap.String("domain", certNamesKey),
-		zap.Time("expiration", expiresAt(certResources[0].decoded)),
-		zap.String("issuer_key", certResources[0].issuer.IssuerKey()),
-		zap.Any("storage", cfg.Storage),
-	)
+	if cfg.Logger != nil {
+		cfg.Logger.Debug("loading managed certificate",
+			zap.String("domain", certNamesKey),
+			zap.Time("expiration", expiresAt(certResources[0].decoded)),
+			zap.String("issuer_key", certResources[0].issuer.IssuerKey()),
+			zap.Any("storage", cfg.Storage),
+		)
+	}
 
 	return certResources[0].CertificateResource, nil
 }

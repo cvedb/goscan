@@ -3,14 +3,15 @@ package http
 import (
 	"context"
 	"net"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/projectdiscovery/fastdialer/fastdialer"
-	"github.com/projectdiscovery/retryablehttp-go"
-	iputil "github.com/projectdiscovery/utils/ip"
-	stringsutil "github.com/projectdiscovery/utils/strings"
+	"github.com/projectdiscovery/iputil"
+	"github.com/projectdiscovery/stringsutil"
+	"github.com/projectdiscovery/urlutil"
 )
 
 var (
@@ -47,25 +48,19 @@ func parseFlowAnnotations(rawRequest string) (flowMark, bool) {
 	return fm, hasFlowOveride
 }
 
-type annotationOverrides struct {
-	request        *retryablehttp.Request
-	cancelFunc     context.CancelFunc
-	interactshURLs []string
-}
-
 // parseAnnotations and override requests settings
-func (r *Request) parseAnnotations(rawRequest string, request *retryablehttp.Request) (overrides annotationOverrides, modified bool) {
+func (r *Request) parseAnnotations(rawRequest string, request *http.Request) (*http.Request, bool) {
 	// parse request for known ovverride annotations
-
+	var modified bool
 	// @Host:target
 	if hosts := reHostAnnotation.FindStringSubmatch(rawRequest); len(hosts) > 0 {
 		value := strings.TrimSpace(hosts[1])
 		// handle scheme
 		switch {
 		case stringsutil.HasPrefixI(value, "http://"):
-			request.URL.Scheme = "http"
+			request.URL.Scheme = urlutil.HTTP
 		case stringsutil.HasPrefixI(value, "https://"):
-			request.URL.Scheme = "https"
+			request.URL.Scheme = urlutil.HTTPS
 		}
 
 		value = stringsutil.TrimPrefixAny(value, "http://", "https://")
@@ -91,14 +86,8 @@ func (r *Request) parseAnnotations(rawRequest string, request *retryablehttp.Req
 			value = value[:idxForwardSlash]
 		}
 
-		switch value {
-		case "request.host":
+		if stringsutil.EqualFoldAny(value, "request.host") {
 			value = request.Host
-		case "interactsh-url":
-			if interactshURL, err := r.options.Interactsh.NewURLWithData("interactsh-url"); err == nil {
-				value = interactshURL
-			}
-			overrides.interactshURLs = append(overrides.interactshURLs, value)
 		}
 		ctx := context.WithValue(request.Context(), fastdialer.SniName, value)
 		request = request.Clone(ctx)
@@ -108,25 +97,22 @@ func (r *Request) parseAnnotations(rawRequest string, request *retryablehttp.Req
 	// @timeout:duration
 	if r.connConfiguration.NoTimeout {
 		modified = true
-		var ctx context.Context
 
 		if duration := reTimeoutAnnotation.FindStringSubmatch(rawRequest); len(duration) > 0 {
 			value := strings.TrimSpace(duration[1])
 			if parsed, err := time.ParseDuration(value); err == nil {
 				//nolint:govet // cancelled automatically by withTimeout
-				ctx, overrides.cancelFunc = context.WithTimeout(context.Background(), parsed)
+				ctx, _ := context.WithTimeout(context.Background(), parsed)
 				request = request.Clone(ctx)
 			}
 		} else {
 			//nolint:govet // cancelled automatically by withTimeout
-			ctx, overrides.cancelFunc = context.WithTimeout(context.Background(), time.Duration(r.options.Options.Timeout)*time.Second)
+			ctx, _ := context.WithTimeout(context.Background(), time.Duration(r.options.Options.Timeout)*time.Second)
 			request = request.Clone(ctx)
 		}
 	}
 
-	overrides.request = request
-
-	return
+	return request, modified
 }
 
 func isHostPort(value string) bool {

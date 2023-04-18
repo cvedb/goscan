@@ -1,7 +1,6 @@
 package go_ora
 
 import (
-	"database/sql"
 	"database/sql/driver"
 	"errors"
 	"fmt"
@@ -62,7 +61,6 @@ func (conn *Connection) RegisterTypeWithOwner(owner, typeName string, typeObj in
 	}
 	sqlText := `SELECT ATTR_NAME, ATTR_TYPE_NAME, LENGTH, ATTR_NO 
 FROM ALL_TYPE_ATTRS WHERE UPPER(OWNER)=:1 AND UPPER(TYPE_NAME)=:2`
-
 	stmt := NewStmt(sqlText, conn)
 	defer func(stmt *Stmt) {
 		_ = stmt.Close()
@@ -75,23 +73,42 @@ FROM ALL_TYPE_ATTRS WHERE UPPER(OWNER)=:1 AND UPPER(TYPE_NAME)=:2`
 	if err != nil {
 		return err
 	}
-	//values := make([]driver.Value, 4)
-	rows, err := stmt.Query_(nil)
+	values := make([]driver.Value, 4)
+	rows, err := stmt.Query(nil)
 	if err != nil {
 		return err
 	}
 	var (
-		attName     sql.NullString
+		attName     string
 		attOrder    int64
-		attTypeName sql.NullString
-		length      sql.NullInt64
+		attTypeName string
+		length      int64
+		ok          bool
 	)
-	for rows.Next_() {
-		err = rows.Scan(&attName, &attTypeName, &length, &attOrder)
+	for {
+		err = rows.Next(values)
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
 			return err
 		}
-
+		if attName, ok = values[0].(string); !ok {
+			return errors.New(fmt.Sprint("error reading attribute properties for type: ", typeName))
+		}
+		if attTypeName, ok = values[1].(string); !ok {
+			return errors.New(fmt.Sprint("error reading attribute properties for type: ", typeName))
+		}
+		if values[2] == nil {
+			length = 0
+		} else {
+			if length, ok = values[2].(int64); !ok {
+				return fmt.Errorf("error reading attribute properties for type: %s", typeName)
+			}
+		}
+		if attOrder, ok = values[3].(int64); !ok {
+			return fmt.Errorf("error reading attribute properties for type: %s", typeName)
+		}
 		for int(attOrder) > len(cust.attribs) {
 			cust.attribs = append(cust.attribs, ParameterInfo{
 				Direction:   Input,
@@ -101,23 +118,23 @@ FROM ALL_TYPE_ATTRS WHERE UPPER(OWNER)=:1 AND UPPER(TYPE_NAME)=:2`
 			})
 		}
 		param := &cust.attribs[attOrder-1]
-		param.Name = attName.String
-		param.TypeName = attTypeName.String
-		switch strings.ToUpper(attTypeName.String) {
+		param.Name = attName
+		param.TypeName = attTypeName
+		switch strings.ToUpper(attTypeName) {
 		case "NUMBER":
 			param.setForNumber()
 		case "VARCHAR2":
 			param.DataType = NCHAR
 			param.CharsetForm = 1
 			param.ContFlag = 16
-			param.MaxCharLen = int(length.Int64)
-			param.MaxLen = int(length.Int64) * converters.MaxBytePerChar(param.CharsetID)
+			param.MaxCharLen = int(length)
+			param.MaxLen = int(length) * converters.MaxBytePerChar(param.CharsetID)
 		case "NVARCHAR2":
 			param.DataType = NCHAR
 			param.CharsetForm = 2
 			param.ContFlag = 16
-			param.MaxCharLen = int(length.Int64)
-			param.MaxLen = int(length.Int64) * converters.MaxBytePerChar(param.CharsetID)
+			param.MaxCharLen = int(length)
+			param.MaxLen = int(length) * converters.MaxBytePerChar(param.CharsetID)
 		case "TIMESTAMP":
 			fallthrough
 		case "DATE":
@@ -128,39 +145,13 @@ FROM ALL_TYPE_ATTRS WHERE UPPER(OWNER)=:1 AND UPPER(TYPE_NAME)=:2`
 		case "RAW":
 			param.DataType = RAW
 			param.ContFlag = 0
-			param.MaxLen = int(length.Int64)
+			param.MaxLen = int(length)
 			param.MaxCharLen = 0
 			param.CharsetForm = 0
 		default:
-			return fmt.Errorf("unsupported attribute type: %s", attTypeName.String)
+			return fmt.Errorf("unsupported attribute type: %s", attTypeName)
 		}
 	}
-	//for {
-	//	err = rows.Next(values)
-	//	if err != nil {
-	//		if errors.Is(err, io.EOF) {
-	//			break
-	//		}
-	//		return err
-	//	}
-	//	if attName, ok = values[0].(string); !ok {
-	//		return errors.New(fmt.Sprint("error reading attribute properties for type: ", typeName))
-	//	}
-	//	if attTypeName, ok = values[1].(string); !ok {
-	//		return errors.New(fmt.Sprint("error reading attribute properties for type: ", typeName))
-	//	}
-	//	if values[2] == nil {
-	//		length = 0
-	//	} else {
-	//		if length, ok = values[2].(int64); !ok {
-	//			return fmt.Errorf("error reading attribute properties for type: %s", typeName)
-	//		}
-	//	}
-	//	if attOrder, ok = values[3].(int64); !ok {
-	//		return fmt.Errorf("error reading attribute properties for type: %s", typeName)
-	//	}
-	//
-	//}
 	if len(cust.attribs) == 0 {
 		return fmt.Errorf("unknown or empty type: %s", typeName)
 	}

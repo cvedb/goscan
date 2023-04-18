@@ -1,15 +1,6 @@
-# Base
-FROM golang:1.20.1-alpine AS builder
-RUN apk add --no-cache build-base
-WORKDIR /app
-COPY . /app
-RUN go mod download
-RUN go build ./cmd/mapcidr
+FROM golang:1.18.3-alpine AS build-env
+RUN go install -v github.com/projectdiscovery/mapcidr/cmd/mapcidr@latest
 
-# Release
-FROM alpine:3.17.2
-RUN apk -U upgrade --no-cache \
-    && apk add --no-cache bind-tools ca-certificates
-COPY --from=builder /app/mapcidr /usr/local/bin/
-
+FROM alpine:latest
+COPY --from=build-env /go/bin/mapcidr /usr/local/bin/mapcidr
 ENTRYPOINT ["mapcidr"]

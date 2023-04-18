@@ -2,8 +2,6 @@ module github.com/w3security/goscan
 
 go 1.18
 
-go 1.18
-
 //naabu
 require (
 	github.com/google/gopacket v1.1.19
@@ -101,7 +99,6 @@ require (
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/gorilla/websocket v1.5.0
 	github.com/gosnmp/gosnmp v1.35.0
-	github.com/w3security/jarm-go v0.0.1
 	github.com/huin/asn1ber v0.0.0-20120622192748-af09f62e6358
 	github.com/icodeface/tls v0.0.0-20190904083142-17aec93c60e5
 	github.com/jlaffaye/ftp v0.1.0
@@ -130,6 +127,7 @@ require (
 	github.com/tj/go-update v2.2.5-0.20200519121640-62b4b798fd68+incompatible
 	github.com/txthinking/socks5 v0.0.0-20220615051428-39268faee3e6
 	github.com/urfave/cli/v2 v2.16.3
+	github.com/w3security/jarm-go v0.0.1
 	go.mongodb.org/mongo-driver v1.10.2
 	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
 	golang.org/x/oauth2 v0.0.0-20220909003341-f21342109be1

@@ -3,6 +3,7 @@ package xmlquery
 import (
 	"bufio"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -91,35 +92,23 @@ func (p *parser) parse() (*Node, error) {
 		case xml.StartElement:
 			if p.level == 0 {
 				// mising XML declaration
-				attributes := make([]Attr, 1)
-				attributes[0].Name = xml.Name{Local: "version"}
-				attributes[0].Value = "1.0"
-				node := &Node{
-					Type:  DeclarationNode,
-					Data:  "xml",
-					Attr:  attributes,
-					level: 1,
-				}
+				node := &Node{Type: DeclarationNode, Data: "xml", level: 1}
 				AddChild(p.prev, node)
 				p.level = 1
 				p.prev = node
 			}
 			// https://www.w3.org/TR/xml-names/#scoping-defaulting
-			var defaultNamespaceURL string
 			for _, att := range tok.Attr {
 				if att.Name.Local == "xmlns" {
-					p.space2prefix[att.Value] = "" // reset empty if exist the default namespace
-					defaultNamespaceURL = att.Value
+					p.space2prefix[att.Value] = ""
 				} else if att.Name.Space == "xmlns" {
-					if _, ok := p.space2prefix[att.Value]; !ok {
-						p.space2prefix[att.Value] = att.Name.Local
-					}
+					p.space2prefix[att.Value] = att.Name.Local
 				}
 			}
 
-			if space := tok.Name.Space; space != "" {
-				if _, found := p.space2prefix[space]; !found && p.decoder.Strict {
-					return nil, fmt.Errorf("xmlquery: invalid XML document, namespace %s is missing", space)
+			if tok.Name.Space != "" {
+				if _, found := p.space2prefix[tok.Name.Space]; !found {
+					return nil, errors.New("xmlquery: invalid XML document, namespace is missing")
 				}
 			}
 
@@ -139,6 +128,7 @@ func (p *parser) parse() (*Node, error) {
 			node := &Node{
 				Type:         ElementNode,
 				Data:         tok.Name.Local,
+				Prefix:       p.space2prefix[tok.Name.Space],
 				NamespaceURI: tok.Name.Space,
 				Attr:         attributes,
 				level:        p.level,
@@ -153,14 +143,6 @@ func (p *parser) parse() (*Node, error) {
 					p.prev = p.prev.Parent
 				}
 				AddSibling(p.prev.Parent, node)
-			}
-			if node.NamespaceURI != "" {
-				node.Prefix = p.space2prefix[node.NamespaceURI]
-				if defaultNamespaceURL != "" && node.NamespaceURI == defaultNamespaceURL {
-					node.Prefix = ""
-				} else if n := node.Parent; n != nil && node.NamespaceURI == n.NamespaceURI {
-					node.Prefix = n.Prefix
-				}
 			}
 			// If we're in the streaming mode, we need to remember the node if it is the target node
 			// so that when we finish processing the node's EndElement, we know how/what to return to

@@ -422,10 +422,6 @@ func easyjsonC5a4559bDecodeGithubComChromedpCdprotoHeapprofiler5(in *jlexer.Lexe
 		switch key {
 		case "samplingInterval":
 			out.SamplingInterval = float64(in.Float64())
-		case "includeObjectsCollectedByMajorGC":
-			out.IncludeObjectsCollectedByMajorGC = bool(in.Bool())
-		case "includeObjectsCollectedByMinorGC":
-			out.IncludeObjectsCollectedByMinorGC = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -445,26 +441,6 @@ func easyjsonC5a4559bEncodeGithubComChromedpCdprotoHeapprofiler5(out *jwriter.Wr
 		first = false
 		out.RawString(prefix[1:])
 		out.Float64(float64(in.SamplingInterval))
-	}
-	if in.IncludeObjectsCollectedByMajorGC {
-		const prefix string = ",\"includeObjectsCollectedByMajorGC\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.Bool(bool(in.IncludeObjectsCollectedByMajorGC))
-	}
-	if in.IncludeObjectsCollectedByMinorGC {
-		const prefix string = ",\"includeObjectsCollectedByMinorGC\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		out.Bool(bool(in.IncludeObjectsCollectedByMinorGC))
 	}
 	out.RawByte('}')
 }

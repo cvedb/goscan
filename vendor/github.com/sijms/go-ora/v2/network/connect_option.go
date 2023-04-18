@@ -1,7 +1,6 @@
 package network
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -27,10 +26,6 @@ type ClientInfo struct {
 	DomainName  string
 	DriverName  string
 	PID         int
-	UseKerberos bool
-	Language    string
-	Territory   string
-	CharsetID   int
 }
 type DatabaseInfo struct {
 	UserID          string
@@ -44,11 +39,6 @@ type DatabaseInfo struct {
 	AuthType        int
 	connStr         string
 }
-
-type DialerContext interface {
-	DialContext(ctx context.Context, network, address string) (net.Conn, error)
-}
-
 type SessionInfo struct {
 	SSLVersion            string
 	Timeout               time.Duration
@@ -58,7 +48,6 @@ type SessionInfo struct {
 	Protocol              string
 	SSL                   bool
 	SSLVerify             bool
-	Dialer                DialerContext
 }
 type AdvNegoSeviceInfo struct {
 	AuthService []string
@@ -70,9 +59,6 @@ type ConnectionOption struct {
 	AdvNegoSeviceInfo
 	Tracer       trace.Tracer
 	PrefetchRows int
-	Failover     int
-	RetryTime    int
-	Lob          int
 }
 
 func extractServers(connStr string) ([]ServerAddr, error) {
@@ -182,9 +168,6 @@ func (serv *ServerAddr) IsEqual(input *ServerAddr) bool {
 }
 func (serv *ServerAddr) networkAddr() string {
 	return net.JoinHostPort(serv.Addr, strconv.Itoa(serv.Port))
-}
-func (op *ConnectionOption) ResetServerIndex() {
-	op.serverIndex = 0
 }
 func (op *ConnectionOption) GetActiveServer(jump bool) *ServerAddr {
 	if jump {

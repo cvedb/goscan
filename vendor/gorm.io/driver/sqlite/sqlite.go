@@ -97,13 +97,12 @@ func (dialector Dialector) ClauseBuilders() map[string]clause.ClauseBuilder {
 		},
 		"LIMIT": func(c clause.Clause, builder clause.Builder) {
 			if limit, ok := c.Expression.(clause.Limit); ok {
-				var lmt = -1
-				if limit.Limit != nil && *limit.Limit >= 0 {
-					lmt = *limit.Limit
-				}
-				if lmt >= 0 || limit.Offset > 0 {
+				if limit.Limit > 0 || limit.Offset > 0 {
+					if limit.Limit <= 0 {
+						limit.Limit = -1
+					}
 					builder.WriteString("LIMIT ")
-					builder.WriteString(strconv.Itoa(lmt))
+					builder.WriteString(strconv.Itoa(limit.Limit))
 				}
 				if limit.Offset > 0 {
 					builder.WriteString(" OFFSET ")
@@ -178,12 +177,7 @@ func (dialector Dialector) DataTypeOf(field *schema.Field) string {
 	case schema.String:
 		return "text"
 	case schema.Time:
-		// Distinguish between schema.Time and tag time
-		if val, ok := field.TagSettings["TYPE"]; ok {
-			return val
-		} else {
-			return "datetime"
-		}
+		return "datetime"
 	case schema.Bytes:
 		return "blob"
 	}

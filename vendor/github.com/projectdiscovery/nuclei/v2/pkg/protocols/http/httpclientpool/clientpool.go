@@ -41,7 +41,7 @@ func Init(options *types.Options) error {
 	if normalClient != nil {
 		return nil
 	}
-	if options.ShouldFollowHTTPRedirects() {
+	if options.FollowRedirects {
 		forceMaxRedirects = options.MaxRedirects
 	}
 	poolMutex = &sync.RWMutex{}
@@ -59,29 +59,6 @@ func Init(options *types.Options) error {
 type ConnectionConfiguration struct {
 	// DisableKeepAlive of the connection
 	DisableKeepAlive bool
-	cookiejar        *cookiejar.Jar
-	mu               sync.RWMutex
-}
-
-func (cc *ConnectionConfiguration) SetCookieJar(cookiejar *cookiejar.Jar) {
-	cc.mu.Lock()
-	defer cc.mu.Unlock()
-
-	cc.cookiejar = cookiejar
-}
-
-func (cc *ConnectionConfiguration) GetCookieJar() *cookiejar.Jar {
-	cc.mu.RLock()
-	defer cc.mu.RUnlock()
-
-	return cc.cookiejar
-}
-
-func (cc *ConnectionConfiguration) HasCookieJar() bool {
-	cc.mu.RLock()
-	defer cc.mu.RUnlock()
-
-	return cc.cookiejar != nil
 }
 
 // Configuration contains the custom configuration options for a client
@@ -94,8 +71,8 @@ type Configuration struct {
 	NoTimeout bool
 	// CookieReuse enables cookie reuse for the http client (cookiejar impl)
 	CookieReuse bool
-	// FollowRedirects specifies the redirects flow
-	RedirectFlow RedirectFlow
+	// FollowRedirects specifies whether to follow redirects
+	FollowRedirects bool
 	// Connection defines custom connection configuration
 	Connection *ConnectionConfiguration
 }
@@ -111,7 +88,7 @@ func (c *Configuration) Hash() string {
 	builder.WriteString("n")
 	builder.WriteString(strconv.FormatBool(c.NoTimeout))
 	builder.WriteString("f")
-	builder.WriteString(strconv.Itoa(int(c.RedirectFlow)))
+	builder.WriteString(strconv.FormatBool(c.FollowRedirects))
 	builder.WriteString("r")
 	builder.WriteString(strconv.FormatBool(c.CookieReuse))
 	builder.WriteString("c")
@@ -122,7 +99,7 @@ func (c *Configuration) Hash() string {
 
 // HasStandardOptions checks whether the configuration requires custom settings
 func (c *Configuration) HasStandardOptions() bool {
-	return c.Threads == 0 && c.MaxRedirects == 0 && c.RedirectFlow == DontFollowRedirect && !c.CookieReuse && c.Connection == nil && !c.NoTimeout
+	return c.Threads == 0 && c.MaxRedirects == 0 && !c.FollowRedirects && !c.CookieReuse && c.Connection == nil && !c.NoTimeout
 }
 
 // GetRawHTTP returns the rawhttp request client
@@ -183,23 +160,16 @@ func wrappedGet(options *types.Options, configuration *Configuration) (*retryabl
 
 	retryableHttpOptions.RetryWaitMax = 10 * time.Second
 	retryableHttpOptions.RetryMax = options.Retries
-	redirectFlow := configuration.RedirectFlow
+	followRedirects := configuration.FollowRedirects
 	maxRedirects := configuration.MaxRedirects
 
 	if forceMaxRedirects > 0 {
-		// by default we enable general redirects following
-		switch {
-		case options.FollowHostRedirects:
-			redirectFlow = FollowSameHostRedirect
-		default:
-			redirectFlow = FollowAllRedirect
-		}
+		followRedirects = true
 		maxRedirects = forceMaxRedirects
 	}
 	if options.DisableRedirects {
 		options.FollowRedirects = false
-		options.FollowHostRedirects = false
-		redirectFlow = DontFollowRedirect
+		followRedirects = false
 		maxRedirects = 0
 	}
 	// override connection's settings if required
@@ -225,7 +195,6 @@ func wrappedGet(options *types.Options, configuration *Configuration) (*retryabl
 	}
 
 	transport := &http.Transport{
-		ForceAttemptHTTP2:   options.ForceAttemptHTTP2,
 		DialContext:         Dialer.Dial,
 		DialTLSContext:      Dialer.DialTLS,
 		MaxIdleConns:        maxIdleConns,
@@ -234,7 +203,6 @@ func wrappedGet(options *types.Options, configuration *Configuration) (*retryabl
 		TLSClientConfig:     tlsConfig,
 		DisableKeepAlives:   disableKeepAlives,
 	}
-
 	if types.ProxyURL != "" {
 		if proxyURL, err := url.Parse(types.ProxyURL); err == nil {
 			transport.Proxy = http.ProxyURL(proxyURL)
@@ -266,9 +234,7 @@ func wrappedGet(options *types.Options, configuration *Configuration) (*retryabl
 	}
 
 	var jar *cookiejar.Jar
-	if configuration.Connection != nil && configuration.Connection.HasCookieJar() {
-		jar = configuration.Connection.GetCookieJar()
-	} else if configuration.CookieReuse {
+	if configuration.CookieReuse {
 		if jar, err = cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List}); err != nil {
 			return nil, errors.Wrap(err, "could not create cookiejar")
 		}
@@ -276,7 +242,7 @@ func wrappedGet(options *types.Options, configuration *Configuration) (*retryabl
 
 	httpclient := &http.Client{
 		Transport:     transport,
-		CheckRedirect: makeCheckRedirectFunc(redirectFlow, maxRedirects),
+		CheckRedirect: makeCheckRedirectFunc(followRedirects, maxRedirects),
 	}
 	if !configuration.NoTimeout {
 		httpclient.Timeout = time.Duration(options.Timeout) * time.Second
@@ -296,51 +262,26 @@ func wrappedGet(options *types.Options, configuration *Configuration) (*retryabl
 	return client, nil
 }
 
-type RedirectFlow uint8
-
-const (
-	DontFollowRedirect RedirectFlow = iota
-	FollowSameHostRedirect
-	FollowAllRedirect
-)
-
 const defaultMaxRedirects = 10
 
 type checkRedirectFunc func(req *http.Request, via []*http.Request) error
 
-func makeCheckRedirectFunc(redirectType RedirectFlow, maxRedirects int) checkRedirectFunc {
+func makeCheckRedirectFunc(followRedirects bool, maxRedirects int) checkRedirectFunc {
 	return func(req *http.Request, via []*http.Request) error {
-		switch redirectType {
-		case DontFollowRedirect:
+		if !followRedirects {
 			return http.ErrUseLastResponse
-		case FollowSameHostRedirect:
-			var newHost = req.URL.Host
-			var oldHost = via[0].Host
-			if oldHost == "" {
-				oldHost = via[0].URL.Host
-			}
-			if newHost != oldHost {
-				// Tell the http client to not follow redirect
+		}
+
+		if maxRedirects == 0 {
+			if len(via) > defaultMaxRedirects {
 				return http.ErrUseLastResponse
 			}
-			return checkMaxRedirects(req, via, maxRedirects)
-		case FollowAllRedirect:
-			return checkMaxRedirects(req, via, maxRedirects)
+			return nil
 		}
-		return nil
-	}
-}
 
-func checkMaxRedirects(req *http.Request, via []*http.Request, maxRedirects int) error {
-	if maxRedirects == 0 {
-		if len(via) > defaultMaxRedirects {
+		if len(via) > maxRedirects {
 			return http.ErrUseLastResponse
 		}
 		return nil
 	}
-
-	if len(via) > maxRedirects {
-		return http.ErrUseLastResponse
-	}
-	return nil
 }

@@ -26,6 +26,7 @@ import (
 	"crypto/rsa"
 	_ "crypto/sha1"
 	_ "crypto/sha256"
+	_ "crypto/sha512"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -491,19 +492,17 @@ func GetSignatureAlgorithmFromAI(ai pkix.AlgorithmIdentifier) SignatureAlgorithm
 // RFC 3279, 2.3 Public Key Algorithms
 //
 // pkcs-1 OBJECT IDENTIFIER ::== { iso(1) member-body(2) us(840)
-//
-//	rsadsi(113549) pkcs(1) 1 }
+//    rsadsi(113549) pkcs(1) 1 }
 //
 // rsaEncryption OBJECT IDENTIFIER ::== { pkcs1-1 1 }
 //
 // id-dsa OBJECT IDENTIFIER ::== { iso(1) member-body(2) us(840)
+//    x9-57(10040) x9cm(4) 1 }
 //
-//	x9-57(10040) x9cm(4) 1 }
+// RFC 5480, 2.1.1 Unrestricted Algorithm Identifier and Parameters
 //
-// # RFC 5480, 2.1.1 Unrestricted Algorithm Identifier and Parameters
-//
-//	id-ecPublicKey OBJECT IDENTIFIER ::= {
-//	      iso(1) member-body(2) us(840) ansi-X9-62(10045) keyType(2) 1 }
+// id-ecPublicKey OBJECT IDENTIFIER ::= {
+//       iso(1) member-body(2) us(840) ansi-X9-62(10045) keyType(2) 1 }
 var (
 	oidPublicKeyRSA   = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
 	oidPublicKeyDSA   = asn1.ObjectIdentifier{1, 2, 840, 10040, 4, 1}
@@ -528,18 +527,18 @@ func getPublicKeyAlgorithmFromOID(oid asn1.ObjectIdentifier) PublicKeyAlgorithm 
 
 // RFC 5480, 2.1.1.1. Named Curve
 //
-//	secp224r1 OBJECT IDENTIFIER ::= {
-//	  iso(1) identified-organization(3) certicom(132) curve(0) 33 }
+// secp224r1 OBJECT IDENTIFIER ::= {
+//   iso(1) identified-organization(3) certicom(132) curve(0) 33 }
 //
-//	secp256r1 OBJECT IDENTIFIER ::= {
-//	  iso(1) member-body(2) us(840) ansi-X9-62(10045) curves(3)
-//	  prime(1) 7 }
+// secp256r1 OBJECT IDENTIFIER ::= {
+//   iso(1) member-body(2) us(840) ansi-X9-62(10045) curves(3)
+//   prime(1) 7 }
 //
-//	secp384r1 OBJECT IDENTIFIER ::= {
-//	  iso(1) identified-organization(3) certicom(132) curve(0) 34 }
+// secp384r1 OBJECT IDENTIFIER ::= {
+//   iso(1) identified-organization(3) certicom(132) curve(0) 34 }
 //
-//	secp521r1 OBJECT IDENTIFIER ::= {
-//	  iso(1) identified-organization(3) certicom(132) curve(0) 35 }
+// secp521r1 OBJECT IDENTIFIER ::= {
+//   iso(1) identified-organization(3) certicom(132) curve(0) 35 }
 //
 // NB: secp256r1 is equivalent to prime256v1
 var (
@@ -1558,7 +1557,7 @@ func parseGeneralNames(value []byte) (otherNames []pkix.OtherName, dnsNames, ema
 	return
 }
 
-// TODO
+//TODO
 func parseCertificate(in *certificate) (*Certificate, error) {
 	out := new(Certificate)
 	out.Raw = in.Raw
@@ -3090,58 +3089,4 @@ func parseCertificateRequest(in *certificateRequest) (*CertificateRequest, error
 // CheckSignature reports whether the signature on c is valid.
 func (c *CertificateRequest) CheckSignature() error {
 	return CheckSignatureFromKey(c.PublicKey, c.SignatureAlgorithm, c.RawTBSCertificateRequest, c.Signature)
-}
-
-// RevocationList contains the fields used to create an X.509 v2 Certificate
-// Revocation list with CreateRevocationList.
-type RevocationList struct {
-	// Raw contains the complete ASN.1 DER content of the CRL (tbsCertList,
-	// signatureAlgorithm, and signatureValue.)
-	Raw []byte
-	// RawTBSRevocationList contains just the tbsCertList portion of the ASN.1
-	// DER.
-	RawTBSRevocationList []byte
-	// RawIssuer contains the DER encoded Issuer.
-	RawIssuer []byte
-
-	// Issuer contains the DN of the issuing certificate.
-	Issuer pkix.Name
-	// AuthorityKeyId is used to identify the public key associated with the
-	// issuing certificate. It is populated from the authorityKeyIdentifier
-	// extension when parsing a CRL. It is ignored when creating a CRL; the
-	// extension is populated from the issuing certificate itself.
-	AuthorityKeyId []byte
-
-	Signature []byte
-	// SignatureAlgorithm is used to determine the signature algorithm to be
-	// used when signing the CRL. If 0 the default algorithm for the signing
-	// key will be used.
-	SignatureAlgorithm SignatureAlgorithm
-
-	// RevokedCertificates is used to populate the revokedCertificates
-	// sequence in the CRL, it may be empty. RevokedCertificates may be nil,
-	// in which case an empty CRL will be created.
-	RevokedCertificates []pkix.RevokedCertificate
-
-	// Number is used to populate the X.509 v2 cRLNumber extension in the CRL,
-	// which should be a monotonically increasing sequence number for a given
-	// CRL scope and CRL issuer. It is also populated from the cRLNumber
-	// extension when parsing a CRL.
-	Number *big.Int
-
-	// ThisUpdate is used to populate the thisUpdate field in the CRL, which
-	// indicates the issuance date of the CRL.
-	ThisUpdate time.Time
-	// NextUpdate is used to populate the nextUpdate field in the CRL, which
-	// indicates the date by which the next CRL will be issued. NextUpdate
-	// must be greater than ThisUpdate.
-	NextUpdate time.Time
-
-	// Extensions contains raw X.509 extensions. When creating a CRL,
-	// the Extensions field is ignored, see ExtraExtensions.
-	Extensions []pkix.Extension
-
-	// ExtraExtensions contains any additional extensions to add directly to
-	// the CRL.
-	ExtraExtensions []pkix.Extension
 }

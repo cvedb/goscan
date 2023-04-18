@@ -33,15 +33,15 @@ $(GOBIN)/goyacc:
 
 .PHONY: install
 install:
-	go install -ldflags=$(BUILD_LDFLAGS) ./cmd/$(BIN)
+	go install -ldflags=$(BUILD_LDFLAGS) ./...
 
 .PHONY: install-dev
 install-dev: parser.go builtin.go
-	go install -ldflags=$(BUILD_LDFLAGS) ./cmd/$(BIN)
+	go install -ldflags=$(BUILD_LDFLAGS) ./...
 
 .PHONY: install-debug
 install-debug: parser.go builtin.go
-	go install -tags gojq_debug -ldflags=$(BUILD_LDFLAGS) ./cmd/$(BIN)
+	go install -tags gojq_debug -ldflags=$(BUILD_LDFLAGS) ./...
 
 .PHONY: show-version
 show-version: $(GOBIN)/gobump

@@ -34,7 +34,6 @@ func (c *ClientAuthRequest) Transport(endpoint *Endpoint) error {
 		dial = c.dial
 	}
 
-	//nolint:gosec
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		TLSClientConfig: &tls.Config{
@@ -62,7 +61,8 @@ func (c *ClientAuthRequest) Transport(endpoint *Endpoint) error {
 
 // parse func reads the response body and return it as a string
 func parse(response *http.Response) (string, error) {
-	// if we received the content we expected
+
+	// if we recived the content we expected
 	if strings.Contains(response.Header.Get("Content-Type"), "application/soap+xml") {
 		body, err := ioutil.ReadAll(response.Body)
 		defer func() {

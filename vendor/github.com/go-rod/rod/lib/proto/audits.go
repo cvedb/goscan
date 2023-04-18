@@ -64,9 +64,6 @@ const (
 
 	// AuditsCookieExclusionReasonExcludeDomainNonASCII enum const
 	AuditsCookieExclusionReasonExcludeDomainNonASCII AuditsCookieExclusionReason = "ExcludeDomainNonASCII"
-
-	// AuditsCookieExclusionReasonExcludeThirdPartyCookieBlockedInFirstPartySet enum const
-	AuditsCookieExclusionReasonExcludeThirdPartyCookieBlockedInFirstPartySet AuditsCookieExclusionReason = "ExcludeThirdPartyCookieBlockedInFirstPartySet"
 )
 
 // AuditsCookieWarningReason ...
@@ -534,9 +531,6 @@ const (
 	// AuditsAttributionReportingIssueTypePermissionPolicyDisabled enum const
 	AuditsAttributionReportingIssueTypePermissionPolicyDisabled AuditsAttributionReportingIssueType = "PermissionPolicyDisabled"
 
-	// AuditsAttributionReportingIssueTypePermissionPolicyNotDelegated enum const
-	AuditsAttributionReportingIssueTypePermissionPolicyNotDelegated AuditsAttributionReportingIssueType = "PermissionPolicyNotDelegated"
-
 	// AuditsAttributionReportingIssueTypeUntrustworthyReportingOrigin enum const
 	AuditsAttributionReportingIssueTypeUntrustworthyReportingOrigin AuditsAttributionReportingIssueType = "UntrustworthyReportingOrigin"
 
@@ -619,15 +613,6 @@ type AuditsGenericIssueErrorType string
 const (
 	// AuditsGenericIssueErrorTypeCrossOriginPortalPostMessageError enum const
 	AuditsGenericIssueErrorTypeCrossOriginPortalPostMessageError AuditsGenericIssueErrorType = "CrossOriginPortalPostMessageError"
-
-	// AuditsGenericIssueErrorTypeFormLabelForNameError enum const
-	AuditsGenericIssueErrorTypeFormLabelForNameError AuditsGenericIssueErrorType = "FormLabelForNameError"
-
-	// AuditsGenericIssueErrorTypeFormDuplicateIDForInputError enum const
-	AuditsGenericIssueErrorTypeFormDuplicateIDForInputError AuditsGenericIssueErrorType = "FormDuplicateIdForInputError"
-
-	// AuditsGenericIssueErrorTypeFormInputWithNoLabelError enum const
-	AuditsGenericIssueErrorTypeFormInputWithNoLabelError AuditsGenericIssueErrorType = "FormInputWithNoLabelError"
 )
 
 // AuditsGenericIssueDetails Depending on the concrete errorType, different properties are set.
@@ -638,9 +623,6 @@ type AuditsGenericIssueDetails struct {
 
 	// FrameID (optional) ...
 	FrameID PageFrameID `json:"frameId,omitempty"`
-
-	// ViolatingNodeID (optional) ...
-	ViolatingNodeID DOMBackendNodeID `json:"violatingNodeId,omitempty"`
 }
 
 // AuditsDeprecationIssueType ...
@@ -707,6 +689,9 @@ const (
 	// AuditsDeprecationIssueTypeInsecurePrivateNetworkSubresourceRequest enum const
 	AuditsDeprecationIssueTypeInsecurePrivateNetworkSubresourceRequest AuditsDeprecationIssueType = "InsecurePrivateNetworkSubresourceRequest"
 
+	// AuditsDeprecationIssueTypeLegacyConstraintGoogIPv6 enum const
+	AuditsDeprecationIssueTypeLegacyConstraintGoogIPv6 AuditsDeprecationIssueType = "LegacyConstraintGoogIPv6"
+
 	// AuditsDeprecationIssueTypeLocalCSSFileExtensionRejected enum const
 	AuditsDeprecationIssueTypeLocalCSSFileExtensionRejected AuditsDeprecationIssueType = "LocalCSSFileExtensionRejected"
 
@@ -715,6 +700,12 @@ const (
 
 	// AuditsDeprecationIssueTypeMediaSourceDurationTruncatingBuffered enum const
 	AuditsDeprecationIssueTypeMediaSourceDurationTruncatingBuffered AuditsDeprecationIssueType = "MediaSourceDurationTruncatingBuffered"
+
+	// AuditsDeprecationIssueTypeNavigateEventRestoreScroll enum const
+	AuditsDeprecationIssueTypeNavigateEventRestoreScroll AuditsDeprecationIssueType = "NavigateEventRestoreScroll"
+
+	// AuditsDeprecationIssueTypeNavigateEventTransitionWhile enum const
+	AuditsDeprecationIssueTypeNavigateEventTransitionWhile AuditsDeprecationIssueType = "NavigateEventTransitionWhile"
 
 	// AuditsDeprecationIssueTypeNoSysexWebMIDIWithoutPermission enum const
 	AuditsDeprecationIssueTypeNoSysexWebMIDIWithoutPermission AuditsDeprecationIssueType = "NoSysexWebMIDIWithoutPermission"
@@ -725,9 +716,6 @@ const (
 	// AuditsDeprecationIssueTypeNotificationPermissionRequestedIframe enum const
 	AuditsDeprecationIssueTypeNotificationPermissionRequestedIframe AuditsDeprecationIssueType = "NotificationPermissionRequestedIframe"
 
-	// AuditsDeprecationIssueTypeObsoleteCreateImageBitmapImageOrientationNone enum const
-	AuditsDeprecationIssueTypeObsoleteCreateImageBitmapImageOrientationNone AuditsDeprecationIssueType = "ObsoleteCreateImageBitmapImageOrientationNone"
-
 	// AuditsDeprecationIssueTypeObsoleteWebRtcCipherSuite enum const
 	AuditsDeprecationIssueTypeObsoleteWebRtcCipherSuite AuditsDeprecationIssueType = "ObsoleteWebRtcCipherSuite"
 
@@ -736,12 +724,6 @@ const (
 
 	// AuditsDeprecationIssueTypeOverflowVisibleOnReplacedElement enum const
 	AuditsDeprecationIssueTypeOverflowVisibleOnReplacedElement AuditsDeprecationIssueType = "OverflowVisibleOnReplacedElement"
-
-	// AuditsDeprecationIssueTypePaymentInstruments enum const
-	AuditsDeprecationIssueTypePaymentInstruments AuditsDeprecationIssueType = "PaymentInstruments"
-
-	// AuditsDeprecationIssueTypePaymentRequestCSPViolation enum const
-	AuditsDeprecationIssueTypePaymentRequestCSPViolation AuditsDeprecationIssueType = "PaymentRequestCSPViolation"
 
 	// AuditsDeprecationIssueTypePersistentQuotaType enum const
 	AuditsDeprecationIssueTypePersistentQuotaType AuditsDeprecationIssueType = "PersistentQuotaType"
@@ -855,38 +837,35 @@ type AuditsFederatedAuthRequestIssueDetails struct {
 type AuditsFederatedAuthRequestIssueReason string
 
 const (
-	// AuditsFederatedAuthRequestIssueReasonShouldEmbargo enum const
-	AuditsFederatedAuthRequestIssueReasonShouldEmbargo AuditsFederatedAuthRequestIssueReason = "ShouldEmbargo"
+	// AuditsFederatedAuthRequestIssueReasonApprovalDeclined enum const
+	AuditsFederatedAuthRequestIssueReasonApprovalDeclined AuditsFederatedAuthRequestIssueReason = "ApprovalDeclined"
 
 	// AuditsFederatedAuthRequestIssueReasonTooManyRequests enum const
 	AuditsFederatedAuthRequestIssueReasonTooManyRequests AuditsFederatedAuthRequestIssueReason = "TooManyRequests"
 
-	// AuditsFederatedAuthRequestIssueReasonWellKnownHTTPNotFound enum const
-	AuditsFederatedAuthRequestIssueReasonWellKnownHTTPNotFound AuditsFederatedAuthRequestIssueReason = "WellKnownHttpNotFound"
+	// AuditsFederatedAuthRequestIssueReasonManifestListHTTPNotFound enum const
+	AuditsFederatedAuthRequestIssueReasonManifestListHTTPNotFound AuditsFederatedAuthRequestIssueReason = "ManifestListHttpNotFound"
 
-	// AuditsFederatedAuthRequestIssueReasonWellKnownNoResponse enum const
-	AuditsFederatedAuthRequestIssueReasonWellKnownNoResponse AuditsFederatedAuthRequestIssueReason = "WellKnownNoResponse"
+	// AuditsFederatedAuthRequestIssueReasonManifestListNoResponse enum const
+	AuditsFederatedAuthRequestIssueReasonManifestListNoResponse AuditsFederatedAuthRequestIssueReason = "ManifestListNoResponse"
 
-	// AuditsFederatedAuthRequestIssueReasonWellKnownInvalidResponse enum const
-	AuditsFederatedAuthRequestIssueReasonWellKnownInvalidResponse AuditsFederatedAuthRequestIssueReason = "WellKnownInvalidResponse"
+	// AuditsFederatedAuthRequestIssueReasonManifestListInvalidResponse enum const
+	AuditsFederatedAuthRequestIssueReasonManifestListInvalidResponse AuditsFederatedAuthRequestIssueReason = "ManifestListInvalidResponse"
 
-	// AuditsFederatedAuthRequestIssueReasonWellKnownListEmpty enum const
-	AuditsFederatedAuthRequestIssueReasonWellKnownListEmpty AuditsFederatedAuthRequestIssueReason = "WellKnownListEmpty"
+	// AuditsFederatedAuthRequestIssueReasonManifestNotInManifestList enum const
+	AuditsFederatedAuthRequestIssueReasonManifestNotInManifestList AuditsFederatedAuthRequestIssueReason = "ManifestNotInManifestList"
 
-	// AuditsFederatedAuthRequestIssueReasonConfigNotInWellKnown enum const
-	AuditsFederatedAuthRequestIssueReasonConfigNotInWellKnown AuditsFederatedAuthRequestIssueReason = "ConfigNotInWellKnown"
+	// AuditsFederatedAuthRequestIssueReasonManifestListTooBig enum const
+	AuditsFederatedAuthRequestIssueReasonManifestListTooBig AuditsFederatedAuthRequestIssueReason = "ManifestListTooBig"
 
-	// AuditsFederatedAuthRequestIssueReasonWellKnownTooBig enum const
-	AuditsFederatedAuthRequestIssueReasonWellKnownTooBig AuditsFederatedAuthRequestIssueReason = "WellKnownTooBig"
+	// AuditsFederatedAuthRequestIssueReasonManifestHTTPNotFound enum const
+	AuditsFederatedAuthRequestIssueReasonManifestHTTPNotFound AuditsFederatedAuthRequestIssueReason = "ManifestHttpNotFound"
 
-	// AuditsFederatedAuthRequestIssueReasonConfigHTTPNotFound enum const
-	AuditsFederatedAuthRequestIssueReasonConfigHTTPNotFound AuditsFederatedAuthRequestIssueReason = "ConfigHttpNotFound"
+	// AuditsFederatedAuthRequestIssueReasonManifestNoResponse enum const
+	AuditsFederatedAuthRequestIssueReasonManifestNoResponse AuditsFederatedAuthRequestIssueReason = "ManifestNoResponse"
 
-	// AuditsFederatedAuthRequestIssueReasonConfigNoResponse enum const
-	AuditsFederatedAuthRequestIssueReasonConfigNoResponse AuditsFederatedAuthRequestIssueReason = "ConfigNoResponse"
-
-	// AuditsFederatedAuthRequestIssueReasonConfigInvalidResponse enum const
-	AuditsFederatedAuthRequestIssueReasonConfigInvalidResponse AuditsFederatedAuthRequestIssueReason = "ConfigInvalidResponse"
+	// AuditsFederatedAuthRequestIssueReasonManifestInvalidResponse enum const
+	AuditsFederatedAuthRequestIssueReasonManifestInvalidResponse AuditsFederatedAuthRequestIssueReason = "ManifestInvalidResponse"
 
 	// AuditsFederatedAuthRequestIssueReasonClientMetadataHTTPNotFound enum const
 	AuditsFederatedAuthRequestIssueReasonClientMetadataHTTPNotFound AuditsFederatedAuthRequestIssueReason = "ClientMetadataHttpNotFound"
@@ -915,9 +894,6 @@ const (
 	// AuditsFederatedAuthRequestIssueReasonAccountsInvalidResponse enum const
 	AuditsFederatedAuthRequestIssueReasonAccountsInvalidResponse AuditsFederatedAuthRequestIssueReason = "AccountsInvalidResponse"
 
-	// AuditsFederatedAuthRequestIssueReasonAccountsListEmpty enum const
-	AuditsFederatedAuthRequestIssueReasonAccountsListEmpty AuditsFederatedAuthRequestIssueReason = "AccountsListEmpty"
-
 	// AuditsFederatedAuthRequestIssueReasonIDTokenHTTPNotFound enum const
 	AuditsFederatedAuthRequestIssueReasonIDTokenHTTPNotFound AuditsFederatedAuthRequestIssueReason = "IdTokenHttpNotFound"
 
@@ -935,9 +911,6 @@ const (
 
 	// AuditsFederatedAuthRequestIssueReasonCanceled enum const
 	AuditsFederatedAuthRequestIssueReasonCanceled AuditsFederatedAuthRequestIssueReason = "Canceled"
-
-	// AuditsFederatedAuthRequestIssueReasonRpPageNotVisible enum const
-	AuditsFederatedAuthRequestIssueReasonRpPageNotVisible AuditsFederatedAuthRequestIssueReason = "RpPageNotVisible"
 )
 
 // AuditsClientHintIssueDetails This issue tracks client hints related issues. It's used to deprecate old

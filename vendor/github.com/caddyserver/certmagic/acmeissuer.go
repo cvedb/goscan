@@ -110,9 +110,7 @@ type ACMEIssuer struct {
 	// certificate chains
 	PreferredChains ChainPreference
 
-	// Set a logger to configure logging; a default
-	// logger must always be set; if no logging is
-	// desired, set this to zap.NewNop().
+	// Set a logger to enable logging
 	Logger *zap.Logger
 
 	config     *Config
@@ -197,11 +195,6 @@ func NewACMEIssuer(cfg *Config, template ACMEIssuer) *ACMEIssuer {
 	}
 	if template.Logger == nil {
 		template.Logger = DefaultACME.Logger
-	}
-
-	// absolutely do not allow a nil logger; that would panic
-	if template.Logger == nil {
-		template.Logger = defaultLogger
 	}
 
 	template.config = cfg
@@ -405,7 +398,7 @@ func (am *ACMEIssuer) doIssue(ctx context.Context, csr *x509.CertificateRequest,
 // processing. If there are no matches, the first chain is returned.
 func (am *ACMEIssuer) selectPreferredChain(certChains []acme.Certificate) acme.Certificate {
 	if len(certChains) == 1 {
-		if len(am.PreferredChains.AnyCommonName) > 0 || len(am.PreferredChains.RootCommonName) > 0 {
+		if am.Logger != nil && (len(am.PreferredChains.AnyCommonName) > 0 || len(am.PreferredChains.RootCommonName) > 0) {
 			am.Logger.Debug("there is only one chain offered; selecting it regardless of preferences",
 				zap.String("chain_url", certChains[0].URL))
 		}
@@ -430,9 +423,11 @@ func (am *ACMEIssuer) selectPreferredChain(certChains []acme.Certificate) acme.C
 		for i, chain := range certChains {
 			certs, err := parseCertsFromPEMBundle(chain.ChainPEM)
 			if err != nil {
-				am.Logger.Error("unable to parse PEM certificate chain",
-					zap.Int("chain", i),
-					zap.Error(err))
+				if am.Logger != nil {
+					am.Logger.Error("unable to parse PEM certificate chain",
+						zap.Int("chain", i),
+						zap.Error(err))
+				}
 				continue
 			}
 			decodedChains[i] = certs
@@ -443,9 +438,11 @@ func (am *ACMEIssuer) selectPreferredChain(certChains []acme.Certificate) acme.C
 				for i, chain := range decodedChains {
 					for _, cert := range chain {
 						if cert.Issuer.CommonName == prefAnyCN {
-							am.Logger.Debug("found preferred certificate chain by issuer common name",
-								zap.String("preference", prefAnyCN),
-								zap.Int("chain", i))
+							if am.Logger != nil {
+								am.Logger.Debug("found preferred certificate chain by issuer common name",
+									zap.String("preference", prefAnyCN),
+									zap.Int("chain", i))
+							}
 							return certChains[i]
 						}
 					}
@@ -457,16 +454,20 @@ func (am *ACMEIssuer) selectPreferredChain(certChains []acme.Certificate) acme.C
 			for _, prefRootCN := range am.PreferredChains.RootCommonName {
 				for i, chain := range decodedChains {
 					if chain[len(chain)-1].Issuer.CommonName == prefRootCN {
-						am.Logger.Debug("found preferred certificate chain by root common name",
-							zap.String("preference", prefRootCN),
-							zap.Int("chain", i))
+						if am.Logger != nil {
+							am.Logger.Debug("found preferred certificate chain by root common name",
+								zap.String("preference", prefRootCN),
+								zap.Int("chain", i))
+						}
 						return certChains[i]
 					}
 				}
 			}
 		}
 
-		am.Logger.Warn("did not find chain matching preferences; using first")
+		if am.Logger != nil {
+			am.Logger.Warn("did not find chain matching preferences; using first")
+		}
 	}
 
 	return certChains[0]
@@ -508,7 +509,6 @@ type ChainPreference struct {
 var DefaultACME = ACMEIssuer{
 	CA:     LetsEncryptProductionCA,
 	TestCA: LetsEncryptStagingCA,
-	Logger: defaultLogger,
 }
 
 // Some well-known CA endpoints available to use.

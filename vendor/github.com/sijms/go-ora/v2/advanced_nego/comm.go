@@ -70,9 +70,6 @@ func (comm *AdvancedNegoComm) validatePacketHeader(length, _type int) error {
 
 func (comm *AdvancedNegoComm) readUB1() (number uint8, err error) {
 	_, err = comm.readPacketHeader(2)
-	if err != nil {
-		return
-	}
 	number, err = comm.session.GetByte()
 	return
 }

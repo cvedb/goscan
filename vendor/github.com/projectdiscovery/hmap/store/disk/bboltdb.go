@@ -2,11 +2,10 @@ package disk
 
 import (
 	"bytes"
+	"errors"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/pkg/errors"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -95,8 +94,9 @@ func (b *BBoltDB) get(k string) ([]byte, error) {
 		expires, actual := parts[0], parts[1]
 		if exp, _ := strconv.Atoi(string(expires)); exp > 0 && int(time.Now().Unix()) >= exp {
 			delete = true
+		} else {
+			data = actual
 		}
-		data = actual
 
 		if delete {
 			return b.Delete([]byte(k))
@@ -182,12 +182,7 @@ func (b *BBoltDB) Scan(scannerOpt ScannerOptions) error {
 		}
 		c := b.Cursor()
 		for key, val := c.First(); key != nil; key, val = c.Next() {
-			parts := bytes.SplitN(val, []byte(expSeparator), 2)
-			data := val
-			if len(parts) == 2 {
-				data = parts[1]
-			}
-			if !valid(key) || scannerOpt.Handler(key, data) != nil {
+			if !valid(key) || scannerOpt.Handler(key, val) != nil {
 				break
 			}
 		}

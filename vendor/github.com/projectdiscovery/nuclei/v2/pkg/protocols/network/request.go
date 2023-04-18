@@ -12,13 +12,11 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v2/pkg/operators"
 	"github.com/projectdiscovery/nuclei/v2/pkg/output"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols"
-	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/contextargs"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/expressions"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/generators"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/helpers/eventcreator"
@@ -37,17 +35,17 @@ func (request *Request) Type() templateTypes.ProtocolType {
 }
 
 // ExecuteWithResults executes the protocol requests and returns results instead of writing them.
-func (request *Request) ExecuteWithResults(input *contextargs.Context, metadata /*TODO review unused parameter*/, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
+func (request *Request) ExecuteWithResults(input string, metadata /*TODO review unused parameter*/, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
 	var address string
 	var err error
 
 	if request.SelfContained {
 		address = ""
 	} else {
-		address, err = getAddress(input.MetaInput.Input)
+		address, err = getAddress(input)
 	}
 	if err != nil {
-		request.options.Output.Request(request.options.TemplatePath, input.MetaInput.Input, request.Type().String(), err)
+		request.options.Output.Request(request.options.TemplatePath, input, request.Type().String(), err)
 		request.options.Progress.IncrementFailedRequestsBy(1)
 		return errors.Wrap(err, "could not get address from url")
 	}
@@ -58,7 +56,7 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, metadata 
 		variables = generators.MergeMaps(variablesMap, variables)
 		actualAddress := replacer.Replace(kv.address, variables)
 
-		if err := request.executeAddress(variables, actualAddress, address, input.MetaInput.Input, kv.tls, previous, callback); err != nil {
+		if err := request.executeAddress(variables, actualAddress, address, input, kv.tls, previous, callback); err != nil {
 			gologger.Warning().Msgf("Could not make network request for %s: %s\n", actualAddress, err)
 			continue
 		}
@@ -92,7 +90,7 @@ func (request *Request) executeAddress(variables map[string]interface{}, actualA
 			}
 		}
 	} else {
-		value := maps.Clone(payloads)
+		value := generators.CopyMap(payloads)
 		if err := request.executeRequestWithPayloads(variables, actualAddress, address, input, shouldUseTLS, value, previous, callback); err != nil {
 			return err
 		}
@@ -131,7 +129,7 @@ func (request *Request) executeRequestWithPayloads(variables map[string]interfac
 
 	interimValues := generators.MergeMaps(variables, payloads)
 
-	if vardump.EnableVarDump {
+	if request.options.Options.Debug || request.options.Options.DebugRequests {
 		gologger.Debug().Msgf("Protocol request variables: \n%s\n", vardump.DumpVariables(interimValues))
 	}
 
@@ -154,7 +152,7 @@ func (request *Request) executeRequestWithPayloads(variables map[string]interfac
 
 		if request.options.Interactsh != nil {
 			var transformedData string
-			transformedData, interactshURLs = request.options.Interactsh.Replace(string(data), []string{})
+			transformedData, interactshURLs = request.options.Interactsh.ReplaceMarkers(string(data), []string{})
 			data = []byte(transformedData)
 		}
 

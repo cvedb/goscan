@@ -5,17 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
-	"errors"
-
+	"github.com/pkg/errors"
+	"github.com/projectdiscovery/fileutil"
+	"github.com/projectdiscovery/folderutil"
 	"github.com/projectdiscovery/goflags"
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/gologger/formatter"
 	"github.com/projectdiscovery/gologger/levels"
-	fileutil "github.com/projectdiscovery/utils/file"
-	folderutil "github.com/projectdiscovery/utils/folder"
-	genericutil "github.com/projectdiscovery/utils/generic"
-	updateutils "github.com/projectdiscovery/utils/update"
 )
 
 var (
@@ -25,36 +23,23 @@ var (
 
 // Options contains the configuration options for tuning the enumeration process.
 type Options struct {
-	Query              goflags.StringSlice
-	Engine             goflags.StringSlice
-	ConfigFile         string
-	ProviderFile       string
-	OutputFile         string
-	OutputFields       string
-	JSON               bool
-	Raw                bool
-	Limit              int
-	Silent             bool
-	Version            bool
-	Verbose            bool
-	NoColor            bool
-	Timeout            int
-	RateLimit          int
-	RateLimitMinute    int
-	Provider           *Provider
-	Retries            int
-	Shodan             goflags.StringSlice
-	ShodanIdb          goflags.StringSlice
-	Fofa               goflags.StringSlice
-	Censys             goflags.StringSlice
-	Quake              goflags.StringSlice
-	Netlas             goflags.StringSlice
-	Hunter             goflags.StringSlice
-	ZoomEye            goflags.StringSlice
-	CriminalIP         goflags.StringSlice
-	Publicwww          goflags.StringSlice
-	HunterHow          goflags.StringSlice
-	DisableUpdateCheck bool
+	Query        goflags.FileStringSlice
+	Engine       goflags.FileNormalizedStringSlice
+	ConfigFile   string
+	ProviderFile string
+	OutputFile   string
+	OutputFields string
+	JSON         bool
+	Raw          bool
+	Limit        int
+	Silent       bool
+	Version      bool
+	Verbose      bool
+	NoColor      bool
+	Timeout      int
+	Delay        int
+	delay        time.Duration
+	Provider     *Provider
 }
 
 // ParseOptions parses the command line flags provided by a user
@@ -65,36 +50,15 @@ func ParseOptions() *Options {
 	flagSet.SetDescription(`quickly discover exposed assets on the internet using multiple search engines.`)
 
 	flagSet.CreateGroup("input", "Input",
-		flagSet.StringSliceVarP(&options.Query, "query", "q", nil, "search query, supports: stdin,file,config input (example: -q 'example query', -q 'query.txt')", goflags.FileStringSliceOptions),
-		flagSet.StringSliceVarP(&options.Engine, "engine", "e", nil, "search engine to query (shodan,shodan-idb,fofa,censys,quake,hunter,zoomeye,netlas,publicwww,criminalip,hunterhow) (default shodan)", goflags.FileNormalizedStringSliceOptions),
-	)
-
-	flagSet.CreateGroup("search-engine", "Search-Engine",
-		flagSet.StringSliceVarP(&options.Shodan, "shodan", "s", nil, "search query for shodan (example: -shodan 'query.txt')", goflags.FileStringSliceOptions),
-		flagSet.StringSliceVarP(&options.ShodanIdb, "shodan-idb", "sd", nil, "search query for shodan-idb (example: -shodan-idb 'query.txt')", goflags.FileStringSliceOptions),
-		flagSet.StringSliceVarP(&options.Fofa, "fofa", "ff", nil, "search query for fofa (example: -fofa 'query.txt')", goflags.FileStringSliceOptions),
-		flagSet.StringSliceVarP(&options.Censys, "censys", "cs", nil, "search query for censys (example: -censys 'query.txt')", goflags.FileStringSliceOptions),
-		flagSet.StringSliceVarP(&options.Quake, "quake", "qk", nil, "search query for quake (example: -quake 'query.txt')", goflags.FileStringSliceOptions),
-		flagSet.StringSliceVarP(&options.Hunter, "hunter", "ht", nil, "search query for hunter (example: -hunter 'query.txt')", goflags.FileStringSliceOptions),
-		flagSet.StringSliceVarP(&options.ZoomEye, "zoomeye", "ze", nil, "search query for zoomeye (example: -zoomeye 'query.txt')", goflags.FileStringSliceOptions),
-		flagSet.StringSliceVarP(&options.Netlas, "netlas", "ne", nil, "search query for netlas (example: -netlas 'query.txt')", goflags.FileStringSliceOptions),
-		flagSet.StringSliceVarP(&options.CriminalIP, "criminalip", "cl", nil, "search query for criminalip (example: -criminalip 'query.txt')", goflags.FileStringSliceOptions),
-		flagSet.StringSliceVarP(&options.Publicwww, "publicwww", "pw", nil, "search query for publicwww (example: -publicwww 'query.txt')", goflags.FileStringSliceOptions),
-		flagSet.StringSliceVarP(&options.HunterHow, "hunterhow", "hh", nil, "search query for hunterhow (example: -hunterhow 'query.txt')", goflags.FileStringSliceOptions),
+		flagSet.FileStringSliceVarP(&options.Query, "query", "q", []string{}, "search query, supports: stdin,file,config input (example: -q 'example query', -q 'query.txt')"),
+		flagSet.FileNormalizedStringSliceVarP(&options.Engine, "engine", "e", []string{}, "search engine to query (shodan,shodan-idb,fofa,censys) (default shodan)"),
 	)
 
 	flagSet.CreateGroup("config", "Config",
 		flagSet.StringVarP(&options.ProviderFile, "provider", "pc", defaultProviderConfigLocation, "provider configuration file"),
 		flagSet.StringVar(&options.ConfigFile, "config", defaultConfigLocation, "flag configuration file"),
 		flagSet.IntVar(&options.Timeout, "timeout", 30, "timeout in seconds"),
-		flagSet.IntVarP(&options.RateLimit, "rate-limit", "rl", 0, "maximum number of http requests to send per second"),
-		flagSet.IntVarP(&options.RateLimitMinute, "rate-limit-minute", "rlm", 0, "maximum number of requests to send per minute"),
-		flagSet.IntVar(&options.Retries, "retry", 2, "number of times to retry a failed request"),
-	)
-
-	flagSet.CreateGroup("update", "Update",
-		flagSet.CallbackVarP(GetUpdateCallback(), "update", "up", "update uncover to latest version"),
-		flagSet.BoolVarP(&options.DisableUpdateCheck, "disable-update-check", "duc", false, "disable automatic uncover update check"),
+		flagSet.IntVar(&options.Delay, "delay", 1, "delay between requests in seconds (0 to disable)"),
 	)
 
 	flagSet.CreateGroup("output", "Output",
@@ -122,19 +86,8 @@ func ParseOptions() *Options {
 	showBanner()
 
 	if options.Version {
-		gologger.Info().Msgf("Current Version: %s\n", version)
+		gologger.Info().Msgf("Current Version: %s\n", Version)
 		os.Exit(0)
-	}
-
-	if !options.DisableUpdateCheck {
-		latestVersion, err := updateutils.GetVersionCheckCallback("uncover")()
-		if err != nil {
-			if options.Verbose {
-				gologger.Error().Msgf("uncover version check failed: %v", err.Error())
-			}
-		} else {
-			gologger.Info().Msgf("Current uncover version %v %v", version, updateutils.GetVersionDescription(version, latestVersion))
-		}
 	}
 
 	if options.ConfigFile != defaultConfigLocation {
@@ -154,20 +107,9 @@ func ParseOptions() *Options {
 		gologger.Warning().Msgf("couldn't parse env vars: %s\n", err)
 	}
 
-	if genericutil.EqualsAll(0,
-		len(options.Engine),
-		len(options.Shodan),
-		len(options.Censys),
-		len(options.Quake),
-		len(options.Fofa),
-		len(options.ShodanIdb),
-		len(options.Hunter),
-		len(options.ZoomEye),
-		len(options.Netlas),
-		len(options.CriminalIP),
-		len(options.Publicwww),
-		len(options.HunterHow)) {
+	if len(options.Engine) == 0 {
 		options.Engine = append(options.Engine, "shodan")
+		options.Engine = append(options.Engine, "shodan-idb")
 	}
 
 	// we make the assumption that input queries aren't that much
@@ -231,27 +173,6 @@ func (options *Options) loadProvidersFromEnv() error {
 			return errors.New("missing fofa key")
 		}
 	}
-	if key, exists := os.LookupEnv("HUNTER_API_KEY"); exists {
-		options.Provider.Hunter = append(options.Provider.Hunter, key)
-	}
-	if key, exists := os.LookupEnv("QUAKE_TOKEN"); exists {
-		options.Provider.Quake = append(options.Provider.Quake, key)
-	}
-	if key, exists := os.LookupEnv("ZOOMEYE_API_KEY"); exists {
-		options.Provider.ZoomEye = append(options.Provider.ZoomEye, key)
-	}
-	if key, exists := os.LookupEnv("NETLAS_API_KEY"); exists {
-		options.Provider.Netlas = append(options.Provider.Netlas, key)
-	}
-	if key, exists := os.LookupEnv("CRIMINALIP_API_KEY"); exists {
-		options.Provider.CriminalIP = append(options.Provider.CriminalIP, key)
-	}
-	if key, exists := os.LookupEnv("PUBLICWWW_API_KEY"); exists {
-		options.Provider.Publicwww = append(options.Provider.Publicwww, key)
-	}
-	if key, exists := os.LookupEnv("HUNTERHOW_API_KEY"); exists {
-		options.Provider.HunterHow = append(options.Provider.HunterHow, key)
-	}
 	return nil
 }
 
@@ -259,19 +180,7 @@ func (options *Options) loadProvidersFromEnv() error {
 func (options *Options) validateOptions() error {
 	// Check if domain, list of domains, or stdin info was provided.
 	// If none was provided, then return.
-	if genericutil.EqualsAll(0,
-		len(options.Query),
-		len(options.Shodan),
-		len(options.Censys),
-		len(options.Quake),
-		len(options.Fofa),
-		len(options.ShodanIdb),
-		len(options.Hunter),
-		len(options.ZoomEye),
-		len(options.Netlas),
-		len(options.CriminalIP),
-		len(options.Publicwww),
-		len(options.HunterHow)) {
+	if len(options.Query) == 0 {
 		return errors.New("no query provided")
 	}
 
@@ -281,20 +190,14 @@ func (options *Options) validateOptions() error {
 	}
 
 	// Validate threads and options
-	if genericutil.EqualsAll(0,
-		len(options.Engine),
-		len(options.Shodan),
-		len(options.Censys),
-		len(options.Quake),
-		len(options.Fofa),
-		len(options.ShodanIdb),
-		len(options.Hunter),
-		len(options.ZoomEye),
-		len(options.Netlas),
-		len(options.CriminalIP),
-		len(options.Publicwww),
-		len(options.HunterHow)) {
+	if len(options.Engine) == 0 {
 		return errors.New("no engine specified")
+	}
+
+	if options.Delay < 0 {
+		return errors.New("delay can't be negative")
+	} else {
+		options.delay = time.Duration(options.Delay) * time.Second
 	}
 
 	return nil

@@ -3,8 +3,8 @@ package go_ora
 import (
 	"bytes"
 	"errors"
-	"github.com/sijms/go-ora/v2/converters"
-	"go/types"
+	"fmt"
+	"github.com/sijms/go-ora/v2/network"
 )
 
 type Clob struct {
@@ -55,7 +55,10 @@ func (lob *Lob) initialize() {
 
 // variableWidthChar if lob has variable width char or not
 func (lob *Lob) variableWidthChar() bool {
-	return len(lob.sourceLocator) > 6 && lob.sourceLocator[6]&128 == 128
+	if len(lob.sourceLocator) > 6 && lob.sourceLocator[6]&128 == 128 {
+		return true
+	}
+	return false
 }
 
 // littleEndianClob if CLOB is littleEndian or not
@@ -83,7 +86,6 @@ func (lob *Lob) getSize() (size int64, err error) {
 	lob.connection.connOption.Tracer.Print("Lob Size: ", size)
 	return
 }
-
 func (lob *Lob) getDataWithOffsetSize(offset, count int64) (data []byte, err error) {
 	if offset == 0 && count == 0 {
 		lob.connection.connOption.Tracer.Print("Read Lob Data:")
@@ -114,7 +116,6 @@ func (lob *Lob) getDataWithOffsetSize(offset, count int64) (data []byte, err err
 func (lob *Lob) getData() (data []byte, err error) {
 	return lob.getDataWithOffsetSize(0, 0)
 }
-
 func (lob *Lob) putData(data []byte) error {
 	lob.connection.connOption.Tracer.Printf("Put Lob Data: %d bytes", len(data))
 	lob.initialize()
@@ -131,29 +132,24 @@ func (lob *Lob) putData(data []byte) error {
 	}
 	return lob.read()
 }
-
 func (lob *Lob) putString(data string, charset int) error {
-	conn := lob.connection
-	conn.connOption.Tracer.Printf("Put Lob String: %d character", int64(len([]rune(data))))
+	lob.connection.connOption.Tracer.Printf("Put Lob String: %d character", int64(len([]rune(data))))
 	lob.initialize()
 	lob.charsetID = charset
-	var strConv converters.IStringConverter
+	tempCharset := lob.connection.strConv.GetLangID()
 	if lob.variableWidthChar() {
-		if conn.dBVersion.Number < 10200 && lob.littleEndianClob() {
-			strConv, _ = conn.getStrConv(2002)
+		if lob.connection.dBVersion.Number < 10200 && lob.littleEndianClob() {
+			lob.connection.strConv.SetLangID(2002)
 		} else {
-			strConv, _ = conn.getStrConv(2000)
+			lob.connection.strConv.SetLangID(2000)
 		}
 	} else {
-		var err error
-		strConv, err = conn.getStrConv(lob.charsetID)
-		if err != nil {
-			return err
-		}
+		lob.connection.strConv.SetLangID(lob.charsetID)
 	}
-	lobData := strConv.Encode(data)
-	// lob.size = int64(len([]rune(data)))
-	// lob.sendSize = true
+	lobData := lob.connection.strConv.Encode(data)
+	lob.connection.strConv.SetLangID(tempCharset)
+	lob.size = int64(len([]rune(data)))
+	lob.sendSize = true
 	lob.sourceOffset = 1
 	lob.connection.session.ResetBuffer()
 	lob.writeOp(0x40)
@@ -176,6 +172,47 @@ func (lob *Lob) isTemporary() bool {
 	return false
 }
 
+//freeAllTemporary: free temporary lobs defined by all_locators
+func (lob *Lob) freeAllTemporary(all_locators [][]byte) error {
+	if len(all_locators) == 0 {
+		return nil
+	}
+	lob.connection.connOption.Tracer.Printf("Free %d Temporary Lobs", len(all_locators))
+	session := lob.connection.session
+	freeTemp := func(locators [][]byte) {
+		totalLen := 0
+		for _, locator := range locators {
+			totalLen += len(locator)
+		}
+		session.PutBytes(0x11, 0x60, 0, 1)
+		session.PutUint(totalLen, 4, true, true)
+		session.PutBytes(0, 0, 0, 0, 0, 0, 0)
+		session.PutUint(0x80111, 4, true, true)
+		session.PutBytes(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+		for _, locator := range locators {
+			session.PutBytes(locator...)
+		}
+	}
+	start := 0
+	end := 0
+	session.ResetBuffer()
+	for start < len(all_locators) {
+		end = start + 25000
+		if end > len(all_locators) {
+			end = len(all_locators)
+		}
+		freeTemp(all_locators[start:end])
+		start += end
+	}
+	session.PutBytes(0x3, 0x93, 0x0)
+	err := session.Write()
+	if err != nil {
+		return err
+	}
+	return (&simpleObject{
+		connection: lob.connection,
+	}).read()
+}
 func (lob *Lob) freeTemporary() error {
 	lob.initialize()
 	lob.connection.session.ResetBuffer()
@@ -186,7 +223,6 @@ func (lob *Lob) freeTemporary() error {
 	}
 	return lob.read()
 }
-
 func (lob *Lob) createTemporaryBLOB() error {
 	lob.connection.connOption.Tracer.Print("Create Temporary BLob:")
 	lob.sourceLocator = make([]byte, 0x28)
@@ -208,7 +244,6 @@ func (lob *Lob) createTemporaryBLOB() error {
 	}
 	return lob.read()
 }
-
 func (lob *Lob) createTemporaryClob(charset, charsetForm int) error {
 	lob.connection.connOption.Tracer.Print("Create Temporary CLob")
 	lob.sourceLocator = make([]byte, 0x28)
@@ -260,7 +295,6 @@ func (lob *Lob) open(mode, opID int) error {
 		return lob.read()
 	}
 }
-
 func (lob *Lob) close(opID int) error {
 	lob.connection.connOption.Tracer.Print("Close Lob: ")
 	if lob.isTemporary() {
@@ -280,7 +314,6 @@ func (lob *Lob) close(opID int) error {
 		return lob.read()
 	}
 }
-
 func (lob *Lob) writeOp(operationID int) {
 	session := lob.connection.session
 	session.PutBytes(3, 0x60, 0)
@@ -377,19 +410,20 @@ func (lob *Lob) read() error {
 			return err
 		}
 		switch msg {
-		//case 4:
-		//	session.Summary, err = network.NewSummary(session)
-		//	if err != nil {
-		//		return err
-		//	}
-		//	if session.HasError() {
-		//		if session.Summary.RetCode == 1403 {
-		//			session.Summary = nil
-		//		} else {
-		//			return session.GetError()
-		//		}
-		//	}
-		//	loop = false
+		case 4:
+			session.Summary, err = network.NewSummary(session)
+			if err != nil {
+				return err
+			}
+			if session.HasError() {
+				if session.Summary.RetCode == 1403 {
+					session.Summary = nil
+				} else {
+					return session.GetError()
+				}
+			}
+			loop = false
+
 		case 8:
 			// read rpa message
 			if len(lob.sourceLocator) != 0 {
@@ -439,67 +473,42 @@ func (lob *Lob) read() error {
 					lob.isNull = true
 				}
 			}
-		//case 9:
-		//	if session.HasEOSCapability {
-		//		temp, err := session.GetInt(4, true, true)
-		//		if err != nil {
-		//			return err
-		//		}
-		//		if session.Summary != nil {
-		//			session.Summary.EndOfCallStatus = temp
-		//		}
-		//	}
-		//	loop = false
+		case 9:
+			if session.HasEOSCapability {
+				temp, err := session.GetInt(4, true, true)
+				if err != nil {
+					return err
+				}
+				if session.Summary != nil {
+					session.Summary.EndOfCallStatus = temp
+				}
+			}
+			loop = false
 		case 14:
 			// get the data
 			err = lob.readData()
 			if err != nil {
 				return err
 			}
-		//case 15:
-		//	warning, err := network.NewWarningObject(session)
-		//	if err != nil {
-		//		return err
-		//	}
-		//	if warning != nil {
-		//		fmt.Println(warning)
-		//	}
-		//case 23:
-		//	opCode, err := session.GetByte()
-		//	if err != nil {
-		//		return err
-		//	}
-		//	err = lob.connection.getServerNetworkInformation(opCode)
-		//	if err != nil {
-		//		return err
-		//	}
-		default:
-			err = lob.connection.readResponse(msg)
+		case 15:
+			warning, err := network.NewWarningObject(session)
 			if err != nil {
 				return err
 			}
-			if msg == 4 {
-				if session.HasError() {
-					if session.Summary.RetCode == 1403 {
-						session.Summary = nil
-					} else {
-						return session.GetError()
-					}
-				}
-				loop = false
+			if warning != nil {
+				fmt.Println(warning)
 			}
-			if msg == 9 {
-				loop = false
+		case 23:
+			opCode, err := session.GetByte()
+			if err != nil {
+				return err
 			}
-			//return errors.New(fmt.Sprintf("TTC error: received code %d during LOB reading", msg))
-		}
-	}
-	if session.IsBreak() {
-		err := (&simpleObject{
-			connection: lob.connection,
-		}).read()
-		if err != nil {
-			return err
+			err = lob.connection.getServerNetworkInformation(opCode)
+			if err != nil {
+				return err
+			}
+		default:
+			return errors.New(fmt.Sprintf("TTC error: received code %d during LOB reading", msg))
 		}
 	}
 	return nil
@@ -508,105 +517,65 @@ func (lob *Lob) read() error {
 // read lob data chunks from network session
 func (lob *Lob) readData() error {
 	session := lob.connection.session
-	tempBytes, err := session.GetClr()
-	if err != nil {
-		return err
+	num1 := 0 // data readed in the call of this function
+	var chunkSize = 0
+	var err error
+	//num3 := offset // the data readed from the start of read operation
+	num4 := 0
+	for num4 != 4 {
+		switch num4 {
+		case 0:
+			nb, err := session.GetByte()
+			if err != nil {
+				return err
+			}
+			chunkSize = int(nb)
+			if chunkSize == 0xFE {
+				num4 = 2
+			} else {
+				num4 = 1
+			}
+		case 1:
+			chunk, err := session.GetBytes(chunkSize)
+			if err != nil {
+				return err
+			}
+			lob.data.Write(chunk)
+			num1 += chunkSize
+			num4 = 4
+		case 2:
+			if session.UseBigClrChunks {
+				chunkSize, err = session.GetInt(4, true, true)
+			} else {
+				var nb byte
+				nb, err = session.GetByte()
+				chunkSize = int(nb)
+			}
+			if err != nil {
+				return err
+			}
+			if chunkSize <= 0 {
+				num4 = 4
+			} else {
+				num4 = 3
+			}
+		case 3:
+			chunk, err := session.GetBytes(chunkSize)
+			if err != nil {
+				return err
+			}
+			lob.data.Write(chunk)
+			num1 += chunkSize
+			//num3 += chunkSize
+			num4 = 2
+		}
 	}
-	lob.data.Write(tempBytes)
 	return nil
-	//totalLength := 0 // data readed in the call of this function
-	//var chunkSize = 0
-	//var err error
-	//
-	//nb, err := session.GetByte()
-	//if err != nil {
-	//	return err
-	//}
-	//chunkSize = int(nb)
-	//if chunkSize == 0xFE {
-	//	for chunkSize > 0 {
-	//		if session.UseBigClrChunks {
-	//			chunkSize, err = session.GetInt(4, true, true)
-	//		} else {
-	//			var nb byte
-	//			nb, err = session.GetByte()
-	//			chunkSize = int(nb)
-	//		}
-	//		if err != nil {
-	//			return err
-	//		}
-	//		chunk, err := session.GetBytes(chunkSize)
-	//		if err != nil {
-	//			return err
-	//		}
-	//		lob.data.Write(chunk)
-	//		totalLength += chunkSize
-	//	}
-	//} else {
-	//	chunk, err := session.GetBytes(chunkSize)
-	//	if err != nil {
-	//		return err
-	//	}
-	//	lob.data.Write(chunk)
-	//	totalLength += chunkSize
-	//}
-	////num4 := 0
-	////for num4 != 4 {
-	////	switch num4 {
-	////	case 0:
-	////		nb, err := session.GetByte()
-	////		if err != nil {
-	////			return err
-	////		}
-	////		chunkSize = int(nb)
-	////		if chunkSize == 0xFE {
-	////			num4 = 2
-	////		} else {
-	////			num4 = 1
-	////		}
-	////	case 1:
-	////		chunk, err := session.GetBytes(chunkSize)
-	////		if err != nil {
-	////			return err
-	////		}
-	////		lob.data.Write(chunk)
-	////		totalLength += chunkSize
-	////		num4 = 4
-	////	case 2:
-	////		if session.UseBigClrChunks {
-	////			chunkSize, err = session.GetInt(4, true, true)
-	////		} else {
-	////			var nb byte
-	////			nb, err = session.GetByte()
-	////			chunkSize = int(nb)
-	////		}
-	////		if err != nil {
-	////			return err
-	////		}
-	////		if chunkSize <= 0 {
-	////			num4 = 4
-	////		} else {
-	////			num4 = 3
-	////		}
-	////	case 3:
-	////		chunk, err := session.GetBytes(chunkSize)
-	////		if err != nil {
-	////			return err
-	////		}
-	////		lob.data.Write(chunk)
-	////		totalLength += chunkSize
-	////		//num3 += chunkSize
-	////		num4 = 2
-	////	}
-	////}
-	//return nil
 }
-
 func (lob *Lob) GetLobId(locator []byte) []byte {
 	//BitConverter.ToString(lobLocator, 10, 10);
 	return locator[10 : 10+10]
 }
-
 func (lob *Lob) append(dest []byte) error {
 	lob.initialize()
 	lob.destLocator = dest
@@ -638,101 +607,3 @@ func (lob *Lob) copy(srcLocator, dstLocator []byte, srcOffset, dstOffset, length
 	}
 	return lob.read()
 }
-
-func (val *Clob) Scan(value interface{}) error {
-	val.Valid = true
-	if value == nil {
-		val.Valid = false
-		val.String = ""
-	}
-	switch temp := value.(type) {
-	case Clob:
-		*val = temp
-	case *Clob:
-		*val = *temp
-	case NClob:
-		*val = Clob(temp)
-	case *NClob:
-		*val = Clob(*temp)
-	case string:
-		val.String = temp
-	case types.Nil:
-		val.String = ""
-		val.Valid = false
-	default:
-		return errors.New("go-ora: Clob column type require Clob or string values")
-	}
-	return nil
-}
-
-func (val *Blob) Scan(value interface{}) error {
-	val.Valid = true
-	if value == nil {
-		val.Valid = false
-		val.Data = nil
-	}
-	switch temp := value.(type) {
-	case Blob:
-		*val = temp
-	case *Blob:
-		*val = *temp
-	case []byte:
-		val.Data = temp
-	case types.Nil:
-		val.Data = nil
-		val.Valid = false
-	default:
-		return errors.New("go-ora: Blob column type require Blob or []byte values")
-	}
-	return nil
-}
-
-func (val *NClob) Scan(value interface{}) error {
-	val.Valid = true
-	if value == nil {
-		val.Valid = false
-		val.String = ""
-	}
-	switch temp := value.(type) {
-	case Clob:
-		*val = NClob(temp)
-	case *Clob:
-		*val = NClob(*temp)
-	case NClob:
-		*val = temp
-	case *NClob:
-		*val = *temp
-	case string:
-		val.String = temp
-	case types.Nil:
-		val.String = ""
-		val.Valid = false
-	default:
-		return errors.New("go-ora: Clob column type require Clob or string values")
-	}
-	return nil
-}
-
-//func (val *Clob) Value() (driver.Value, error) {
-//	if val.Valid {
-//		return val.String, nil
-//	} else {
-//		return nil, nil
-//	}
-//}
-//
-//func (val *NClob) Value() (driver.Value, error) {
-//	if val.Valid {
-//		return val.String, nil
-//	} else {
-//		return nil, nil
-//	}
-//}
-//
-//func (val *Blob) Value() (driver.Value, error) {
-//	if val.Valid {
-//		return val.Data, nil
-//	} else {
-//		return nil, nil
-//	}
-//}

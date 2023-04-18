@@ -6,21 +6,13 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
-	"time"
 
 	jsoniter "github.com/json-iterator/go"
-
 	"github.com/projectdiscovery/subfinder/v2/pkg/subscraping"
 )
 
-const (
-	indexURL     = "https://index.commoncrawl.org/collinfo.json"
-	maxYearsBack = 5
-)
-
-var year = time.Now().Year()
+const indexURL = "https://index.commoncrawl.org/collinfo.json"
 
 type indexResponse struct {
 	ID     string `json:"id"`
@@ -28,28 +20,20 @@ type indexResponse struct {
 }
 
 // Source is the passive scraping agent
-type Source struct {
-	timeTaken time.Duration
-	errors    int
-	results   int
-}
+type Source struct{}
+
+var years = [...]string{"2020", "2019", "2018", "2017"}
 
 // Run function returns all subdomains found with the service
 func (s *Source) Run(ctx context.Context, domain string, session *subscraping.Session) <-chan subscraping.Result {
 	results := make(chan subscraping.Result)
-	s.errors = 0
-	s.results = 0
 
 	go func() {
-		defer func(startTime time.Time) {
-			s.timeTaken = time.Since(startTime)
-			close(results)
-		}(time.Now())
+		defer close(results)
 
 		resp, err := session.SimpleGet(ctx, indexURL)
 		if err != nil {
 			results <- subscraping.Result{Source: s.Name(), Type: subscraping.Error, Error: err}
-			s.errors++
 			session.DiscardHTTPResponse(resp)
 			return
 		}
@@ -58,16 +42,10 @@ func (s *Source) Run(ctx context.Context, domain string, session *subscraping.Se
 		err = jsoniter.NewDecoder(resp.Body).Decode(&indexes)
 		if err != nil {
 			results <- subscraping.Result{Source: s.Name(), Type: subscraping.Error, Error: err}
-			s.errors++
 			resp.Body.Close()
 			return
 		}
 		resp.Body.Close()
-
-		years := make([]string, 0)
-		for i := 0; i < maxYearsBack; i++ {
-			years = append(years, strconv.Itoa(year-i))
-		}
 
 		searchIndexes := make(map[string]string)
 		for _, year := range years {
@@ -95,30 +73,6 @@ func (s *Source) Run(ctx context.Context, domain string, session *subscraping.Se
 // Name returns the name of the source
 func (s *Source) Name() string {
 	return "commoncrawl"
-}
-
-func (s *Source) IsDefault() bool {
-	return false
-}
-
-func (s *Source) HasRecursiveSupport() bool {
-	return false
-}
-
-func (s *Source) NeedsKey() bool {
-	return false
-}
-
-func (s *Source) AddApiKeys(_ []string) {
-	// no key needed
-}
-
-func (s *Source) Statistics() subscraping.Statistics {
-	return subscraping.Statistics{
-		Errors:    s.errors,
-		Results:   s.results,
-		TimeTaken: s.timeTaken,
-	}
 }
 
 func (s *Source) getSubdomains(ctx context.Context, searchURL, domain string, session *subscraping.Session, results chan subscraping.Result) bool {

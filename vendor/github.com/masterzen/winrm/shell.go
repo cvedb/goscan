@@ -1,7 +1,5 @@
 package winrm
 
-import "context"
-
 // Shell is the local view of a WinRM Shell of a given Client
 type Shell struct {
 	client *Client
@@ -9,14 +7,7 @@ type Shell struct {
 }
 
 // Execute command on the given Shell, returning either an error or a Command
-//
-// Deprecated: user ExecuteWithContext
 func (s *Shell) Execute(command string, arguments ...string) (*Command, error) {
-	return s.ExecuteWithContext(context.Background(), command, arguments...)
-}
-
-// ExecuteWithContext command on the given Shell, returning either an error or a Command
-func (s *Shell) ExecuteWithContext(ctx context.Context, command string, arguments ...string) (*Command, error) {
 	request := NewExecuteCommandRequest(s.client.url, s.id, command, arguments, &s.client.Parameters)
 	defer request.Free()
 
@@ -30,7 +21,7 @@ func (s *Shell) ExecuteWithContext(ctx context.Context, command string, argument
 		return nil, err
 	}
 
-	cmd := newCommand(ctx, s, commandID)
+	cmd := newCommand(s, commandID)
 
 	return cmd, nil
 }

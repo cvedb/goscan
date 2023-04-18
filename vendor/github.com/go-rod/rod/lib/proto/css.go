@@ -298,10 +298,6 @@ type CSSCSSProperty struct {
 
 	// Range (optional) The entire property range in the enclosing style declaration (if available).
 	Range *CSSSourceRange `json:"range,omitempty"`
-
-	// LonghandProperties (experimental) (optional) Parsed longhand components of this property if it is a shorthand.
-	// This field will be empty if the given property is not a shorthand.
-	LonghandProperties []*CSSCSSProperty `json:"longhandProperties,omitempty"`
 }
 
 // CSSCSSMediaSource enum
@@ -391,12 +387,6 @@ type CSSCSSContainerQuery struct {
 
 	// Name (optional) Optional name for the container.
 	Name string `json:"name,omitempty"`
-
-	// PhysicalAxes (optional) Optional physical axes queried for the container.
-	PhysicalAxes DOMPhysicalAxes `json:"physicalAxes,omitempty"`
-
-	// LogicalAxes (optional) Optional logical axes queried for the container.
-	LogicalAxes DOMLogicalAxes `json:"logicalAxes,omitempty"`
 }
 
 // CSSCSSSupports (experimental) CSS Supports at-rule descriptor.

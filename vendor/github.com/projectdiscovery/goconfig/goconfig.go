@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	reflectutil "github.com/projectdiscovery/utils/reflect"
+	"github.com/projectdiscovery/reflectutil"
 	ini "gopkg.in/ini.v1"
 )
 
@@ -28,10 +28,7 @@ func Save(v interface{}, saveTo string) error {
 		default:
 			data = fmt.Sprint(v)
 		}
-		_, err := cfg.Section("").NewKey(k, data)
-		if err != nil {
-			return err
-		}
+		cfg.Section("").NewKey(k, data)
 	}
 	return cfg.SaveTo(saveTo)
 }

@@ -59,7 +59,9 @@ func NewClientKerberos(settings *Settings) *ClientKerberos {
 }
 
 func (c *ClientKerberos) Transport(endpoint *Endpoint) error {
-	return c.clientRequest.Transport(endpoint)
+	c.clientRequest.Transport(endpoint)
+
+	return nil
 }
 
 func (c *ClientKerberos) Post(clt *Client, request *soap.SoapMessage) (string, error) {
@@ -73,17 +75,17 @@ func (c *ClientKerberos) Post(clt *Client, request *soap.SoapMessage) (string, e
 	if len(c.KrbCCache) > 0 {
 		b, err := ioutil.ReadFile(c.KrbCCache)
 		if err != nil {
-			return "", fmt.Errorf("unable to read ccache file %s: %w", c.KrbCCache, err)
+			return "", fmt.Errorf("Unable to read ccache file %s: %s\n", c.KrbCCache, err.Error())
 		}
 
 		cc := new(credentials.CCache)
 		err = cc.Unmarshal(b)
 		if err != nil {
-			return "", fmt.Errorf("unable to parse ccache file %s: %w", c.KrbCCache, err)
+			return "", fmt.Errorf("Unable to parse ccache file %s: %s", c.KrbCCache, err.Error())
 		}
 		kerberosClient, err = client.NewFromCCache(cc, cfg, client.DisablePAFXFAST(true))
 		if err != nil {
-			return "", fmt.Errorf("unable to create kerberos client from ccache: %w", err)
+			return "", fmt.Errorf("Unable to create kerberos client from ccache: %s\n", err.Error())
 		}
 	} else {
 		kerberosClient = client.NewWithPassword(c.Username, c.Realm, c.Password, cfg,
@@ -92,13 +94,12 @@ func (c *ClientKerberos) Post(clt *Client, request *soap.SoapMessage) (string, e
 
 	//create an http request
 	winrmURL := fmt.Sprintf("%s://%s:%d/wsman", c.Proto, c.Hostname, c.Port)
-	//nolint:noctx
 	winRMRequest, _ := http.NewRequest("POST", winrmURL, strings.NewReader(request.String()))
 	winRMRequest.Header.Add("Content-Type", "application/soap+xml;charset=UTF-8")
 
 	err = spnego.SetSPNEGOHeader(kerberosClient, winRMRequest, c.SPN)
 	if err != nil {
-		return "", fmt.Errorf("unable to set SPNego Header: %w", err)
+		return "", fmt.Errorf("Unable to set SPNego Header: %s\n", err.Error())
 	}
 
 	httpClient := &http.Client{Transport: c.transport}
@@ -117,7 +118,7 @@ func (c *ClientKerberos) Post(clt *Client, request *soap.SoapMessage) (string, e
 		} else {
 			bodyMsg = fmt.Sprintf("Response body:\n%s", string(respBody))
 		}
-		return "", fmt.Errorf("request returned: %d - %s. %s", resp.StatusCode, resp.Status, bodyMsg)
+		return "", fmt.Errorf("Request returned: %d - %s. %s ", resp.StatusCode, resp.Status, bodyMsg)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)

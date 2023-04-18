@@ -1,8 +1,6 @@
 package filter
 
-import (
-	"github.com/projectdiscovery/nuclei/v2/pkg/catalog"
-)
+import "github.com/projectdiscovery/nuclei/v2/pkg/catalog"
 
 // PathFilter is a path based template filter
 type PathFilter struct {
@@ -18,13 +16,12 @@ type PathFilterConfig struct {
 
 // NewPathFilter creates a new path filter from provided config
 func NewPathFilter(config *PathFilterConfig, catalogClient catalog.Catalog) *PathFilter {
-	paths, _ := catalogClient.GetTemplatesPath(config.ExcludedTemplates)
 	filter := &PathFilter{
-		excludedTemplates:          paths,
+		excludedTemplates:          catalogClient.GetTemplatesPath(config.ExcludedTemplates),
 		alwaysIncludedTemplatesMap: make(map[string]struct{}),
 	}
 
-	alwaysIncludeTemplates, _ := catalogClient.GetTemplatesPath(config.IncludedTemplates)
+	alwaysIncludeTemplates := catalogClient.GetTemplatesPath(config.IncludedTemplates)
 	for _, tpl := range alwaysIncludeTemplates {
 		filter.alwaysIncludedTemplatesMap[tpl] = struct{}{}
 	}

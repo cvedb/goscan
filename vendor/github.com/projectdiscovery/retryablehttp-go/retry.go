@@ -34,7 +34,35 @@ type CheckRetry func(ctx context.Context, resp *http.Response, err error) (bool,
 // will retry on connection errors and server errors.
 func DefaultRetryPolicy() func(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	return func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-		return CheckRecoverableErrors(ctx, resp, err)
+		// do not retry on context.Canceled or context.DeadlineExceeded
+		//fmt.Printf("jkajsuiohsd %v\n", ctx.Err())
+		if ctx.Err() != nil {
+			return false, ctx.Err()
+		}
+
+		if err != nil {
+			if v, ok := err.(*url.Error); ok {
+				// Don't retry if the error was due to too many redirects.
+				if redirectsErrorRegex.MatchString(v.Error()) {
+					return false, nil
+				}
+
+				// Don't retry if the error was due to an invalid protocol scheme.
+				if schemeErrorRegex.MatchString(v.Error()) {
+					return false, nil
+				}
+
+				// Don't retry if the error was due to TLS cert verification failure.
+				if _, ok := v.Err.(x509.UnknownAuthorityError); ok {
+					return false, nil
+				}
+			}
+
+			// The error is likely recoverable so retry.
+			return true, nil
+		}
+
+		return false, nil
 	}
 }
 
@@ -42,36 +70,33 @@ func DefaultRetryPolicy() func(ctx context.Context, resp *http.Response, err err
 // will retry on connection errors and server errors.
 func HostSprayRetryPolicy() func(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	return func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-		return CheckRecoverableErrors(ctx, resp, err)
-	}
-}
-
-// Check recoverable errors
-func CheckRecoverableErrors(ctx context.Context, resp *http.Response, err error) (bool, error) {
-	// do not retry on context.Canceled or context.DeadlineExceeded
-	if ctx.Err() != nil {
-		return false, ctx.Err()
-	}
-
-	if err != nil {
-		if v, ok := err.(*url.Error); ok {
-			// Don't retry if the error was due to too many redirects.
-			if redirectsErrorRegex.MatchString(v.Error()) {
-				return false, nil
-			}
-
-			// Don't retry if the error was due to an invalid protocol scheme.
-			if schemeErrorRegex.MatchString(v.Error()) {
-				return false, nil
-			}
-
-			// Don't retry if the error was due to TLS cert verification failure.
-			if _, ok := v.Err.(x509.UnknownAuthorityError); ok {
-				return false, nil
-			}
+		// do not retry on context.Canceled or context.DeadlineExceeded
+		if ctx.Err() != nil {
+			return false, ctx.Err()
 		}
-		// The error is likely recoverable so retry.
-		return true, nil
+
+		if err != nil {
+			if v, ok := err.(*url.Error); ok {
+				// Don't retry if the error was due to too many redirects.
+				if redirectsErrorRegex.MatchString(v.Error()) {
+					return false, nil
+				}
+
+				// Don't retry if the error was due to an invalid protocol scheme.
+				if schemeErrorRegex.MatchString(v.Error()) {
+					return false, nil
+				}
+
+				// Don't retry if the error was due to TLS cert verification failure.
+				if _, ok := v.Err.(x509.UnknownAuthorityError); ok {
+					return false, nil
+				}
+			}
+
+			// The error is likely recoverable so retry.
+			return true, nil
+		}
+
+		return false, nil
 	}
-	return false, nil
 }

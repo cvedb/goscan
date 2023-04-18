@@ -578,7 +578,6 @@ func (c *Config) Clone() *Config {
 		ExplicitCurvePreferences:       c.ExplicitCurvePreferences,
 		sessionTicketKeys:              sessionTicketKeys,
 		ClientFingerprintConfiguration: c.ClientFingerprintConfiguration,
-		CertsOnly:                      c.CertsOnly,
 		// originalConfig is deliberately not duplicated.
 
 		// Not merged from upstream:

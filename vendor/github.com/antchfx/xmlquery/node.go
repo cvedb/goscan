@@ -1,6 +1,7 @@
 package xmlquery
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
 	"html"
@@ -49,55 +50,24 @@ type Node struct {
 	level int // node level in the tree
 }
 
-type outputConfiguration struct {
-	printSelf              bool
-	preserveSpaces         bool
-	emptyElementTagSupport bool
-	skipComments           bool
-}
-
-type OutputOption func(*outputConfiguration)
-
-// WithOutputSelf configures the Node to print the root node itself
-func WithOutputSelf() OutputOption {
-	return func(oc *outputConfiguration) {
-		oc.printSelf = true
-	}
-}
-
-// WithEmptyTagSupport empty tags should be written as <empty/> and
-// not as <empty></empty>
-func WithEmptyTagSupport() OutputOption {
-	return func(oc *outputConfiguration) {
-		oc.emptyElementTagSupport = true
-	}
-}
-
-// WithoutComments will skip comments in output
-func WithoutComments() OutputOption {
-	return func(oc *outputConfiguration) {
-		oc.skipComments = true
-	}
-}
-
 // InnerText returns the text between the start and end tags of the object.
 func (n *Node) InnerText() string {
-	var output func(*strings.Builder, *Node)
-	output = func(b *strings.Builder, n *Node) {
+	var output func(*bytes.Buffer, *Node)
+	output = func(buf *bytes.Buffer, n *Node) {
 		switch n.Type {
 		case TextNode, CharDataNode:
-			b.WriteString(n.Data)
+			buf.WriteString(n.Data)
 		case CommentNode:
 		default:
 			for child := n.FirstChild; child != nil; child = child.NextSibling {
-				output(b, child)
+				output(buf, child)
 			}
 		}
 	}
 
-	var b strings.Builder
-	output(&b, n)
-	return b.String()
+	var buf bytes.Buffer
+	output(&buf, n)
+	return buf.String()
 }
 
 func (n *Node) sanitizedData(preserveSpaces bool) string {
@@ -116,106 +86,72 @@ func calculatePreserveSpaces(n *Node, pastValue bool) bool {
 	return pastValue
 }
 
-func outputXML(b *strings.Builder, n *Node, preserveSpaces bool, config *outputConfiguration) {
+func outputXML(buf *bytes.Buffer, n *Node, preserveSpaces bool) {
 	preserveSpaces = calculatePreserveSpaces(n, preserveSpaces)
 	switch n.Type {
 	case TextNode:
-		b.WriteString(html.EscapeString(n.sanitizedData(preserveSpaces)))
+		buf.WriteString(html.EscapeString(n.sanitizedData(preserveSpaces)))
 		return
 	case CharDataNode:
-		b.WriteString("<![CDATA[")
-		b.WriteString(n.Data)
-		b.WriteString("]]>")
+		buf.WriteString("<![CDATA[")
+		buf.WriteString(n.Data)
+		buf.WriteString("]]>")
 		return
 	case CommentNode:
-		if !config.skipComments {
-			b.WriteString("<!--")
-			b.WriteString(n.Data)
-			b.WriteString("-->")
-		}
+		buf.WriteString("<!--")
+		buf.WriteString(n.Data)
+		buf.WriteString("-->")
 		return
 	case DeclarationNode:
-		b.WriteString("<?" + n.Data)
+		buf.WriteString("<?" + n.Data)
 	default:
 		if n.Prefix == "" {
-			b.WriteString("<" + n.Data)
+			buf.WriteString("<" + n.Data)
 		} else {
-			b.WriteString("<" + n.Prefix + ":" + n.Data)
+			buf.WriteString("<" + n.Prefix + ":" + n.Data)
 		}
 	}
 
 	for _, attr := range n.Attr {
 		if attr.Name.Space != "" {
-			b.WriteString(fmt.Sprintf(` %s:%s=`, attr.Name.Space, attr.Name.Local))
+			buf.WriteString(fmt.Sprintf(` %s:%s=`, attr.Name.Space, attr.Name.Local))
 		} else {
-			b.WriteString(fmt.Sprintf(` %s=`, attr.Name.Local))
+			buf.WriteString(fmt.Sprintf(` %s=`, attr.Name.Local))
 		}
-		b.WriteByte('"')
-		b.WriteString(html.EscapeString(attr.Value))
-		b.WriteByte('"')
+		buf.WriteByte('"')
+		buf.WriteString(html.EscapeString(attr.Value))
+		buf.WriteByte('"')
 	}
 	if n.Type == DeclarationNode {
-		b.WriteString("?>")
+		buf.WriteString("?>")
 	} else {
-		if n.FirstChild != nil || !config.emptyElementTagSupport {
-			b.WriteString(">")
-		} else {
-			b.WriteString("/>")
-			return
-		}
+		buf.WriteString(">")
 	}
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
-		outputXML(b, child, preserveSpaces, config)
+		outputXML(buf, child, preserveSpaces)
 	}
 	if n.Type != DeclarationNode {
 		if n.Prefix == "" {
-			b.WriteString(fmt.Sprintf("</%s>", n.Data))
+			buf.WriteString(fmt.Sprintf("</%s>", n.Data))
 		} else {
-			b.WriteString(fmt.Sprintf("</%s:%s>", n.Prefix, n.Data))
+			buf.WriteString(fmt.Sprintf("</%s:%s>", n.Prefix, n.Data))
 		}
 	}
 }
 
 // OutputXML returns the text that including tags name.
 func (n *Node) OutputXML(self bool) string {
-
-	config := &outputConfiguration{
-		printSelf:              true,
-		emptyElementTagSupport: false,
-	}
 	preserveSpaces := calculatePreserveSpaces(n, false)
-	var b strings.Builder
+	var buf bytes.Buffer
 	if self && n.Type != DocumentNode {
-		outputXML(&b, n, preserveSpaces, config)
+		outputXML(&buf, n, preserveSpaces)
 	} else {
 		for n := n.FirstChild; n != nil; n = n.NextSibling {
-			outputXML(&b, n, preserveSpaces, config)
+			outputXML(&buf, n, preserveSpaces)
 		}
 	}
 
-	return b.String()
-}
-
-// OutputXMLWithOptions returns the text that including tags name.
-func (n *Node) OutputXMLWithOptions(opts ...OutputOption) string {
-
-	config := &outputConfiguration{}
-	// Set the options
-	for _, opt := range opts {
-		opt(config)
-	}
-
-	preserveSpaces := calculatePreserveSpaces(n, false)
-	var b strings.Builder
-	if config.printSelf && n.Type != DocumentNode {
-		outputXML(&b, n, preserveSpaces, config)
-	} else {
-		for n := n.FirstChild; n != nil; n = n.NextSibling {
-			outputXML(&b, n, preserveSpaces, config)
-		}
-	}
-
-	return b.String()
+	return buf.String()
 }
 
 // AddAttr adds a new attribute specified by 'key' and 'val' to a node 'n'.
@@ -234,55 +170,6 @@ func AddAttr(n *Node, key, val string) {
 	}
 
 	n.Attr = append(n.Attr, attr)
-}
-
-// SetAttr allows an attribute value with the specified name to be changed.
-// If the attribute did not previously exist, it will be created.
-func (n *Node) SetAttr(key, value string) {
-	if i := strings.Index(key, ":"); i > 0 {
-		space := key[:i]
-		local := key[i+1:]
-		for idx := 0; idx < len(n.Attr); idx++ {
-			if n.Attr[idx].Name.Space == space && n.Attr[idx].Name.Local == local {
-				n.Attr[idx].Value = value
-				return
-			}
-		}
-
-		AddAttr(n, key, value)
-	} else {
-		for idx := 0; idx < len(n.Attr); idx++ {
-			if n.Attr[idx].Name.Local == key {
-				n.Attr[idx].Value = value
-				return
-			}
-		}
-
-		AddAttr(n, key, value)
-	}
-}
-
-// RemoveAttr removes the attribute with the specified name.
-func (n *Node) RemoveAttr(key string) {
-	removeIdx := -1
-	if i := strings.Index(key, ":"); i > 0 {
-		space := key[:i]
-		local := key[i+1:]
-		for idx := 0; idx < len(n.Attr); idx++ {
-			if n.Attr[idx].Name.Space == space && n.Attr[idx].Name.Local == local {
-				removeIdx = idx
-			}
-		}
-	} else {
-		for idx := 0; idx < len(n.Attr); idx++ {
-			if n.Attr[idx].Name.Local == key {
-				removeIdx = idx
-			}
-		}
-	}
-	if removeIdx != -1 {
-		n.Attr = append(n.Attr[:removeIdx], n.Attr[removeIdx+1:]...)
-	}
 }
 
 // AddChild adds a new node 'n' to a node 'parent' as its last child.

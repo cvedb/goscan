@@ -13,7 +13,11 @@ func (db *DB) Migrator() Migrator {
 
 	// apply scopes to migrator
 	for len(tx.Statement.scopes) > 0 {
-		tx = tx.executeScopes()
+		scopes := tx.Statement.scopes
+		tx.Statement.scopes = nil
+		for _, scope := range scopes {
+			tx = scope(tx)
+		}
 	}
 
 	return tx.Dialector.Migrator(tx.Session(&Session{}))
@@ -26,9 +30,9 @@ func (db *DB) AutoMigrate(dst ...interface{}) error {
 
 // ViewOption view option
 type ViewOption struct {
-	Replace     bool   // If true, exec `CREATE`. If false, exec `CREATE OR REPLACE`
-	CheckOption string // optional. e.g. `WITH [ CASCADED | LOCAL ] CHECK OPTION`
-	Query       *DB    // required subquery.
+	Replace     bool
+	CheckOption string
+	Query       *DB
 }
 
 // ColumnType column type interface
@@ -64,7 +68,6 @@ type Migrator interface {
 	// Database
 	CurrentDatabase() string
 	FullDataTypeOf(*schema.Field) clause.Expr
-	GetTypeAliases(databaseTypeName string) []string
 
 	// Tables
 	CreateTable(dst ...interface{}) error

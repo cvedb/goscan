@@ -23,7 +23,7 @@
 package ants
 
 import (
-	"runtime/debug"
+	"runtime"
 	"time"
 )
 
@@ -37,8 +37,8 @@ type goWorkerWithFunc struct {
 	// args is a job should be done.
 	args chan interface{}
 
-	// lastUsed will be updated when putting a worker back into queue.
-	lastUsed time.Time
+	// recycleTime will be updated when putting a worker back into queue.
+	recycleTime time.Time
 }
 
 // run starts a goroutine to repeat the process
@@ -53,7 +53,10 @@ func (w *goWorkerWithFunc) run() {
 				if ph := w.pool.options.PanicHandler; ph != nil {
 					ph(p)
 				} else {
-					w.pool.options.Logger.Printf("worker exits from panic: %v\n%s\n", p, debug.Stack())
+					w.pool.options.Logger.Printf("worker with func exits from a panic: %v\n", p)
+					var buf [4096]byte
+					n := runtime.Stack(buf[:], false)
+					w.pool.options.Logger.Printf("worker with func exits from panic: %s\n", string(buf[:n]))
 				}
 			}
 			// Call Signal() here in case there are goroutines waiting for available workers.
@@ -70,20 +73,4 @@ func (w *goWorkerWithFunc) run() {
 			}
 		}
 	}()
-}
-
-func (w *goWorkerWithFunc) finish() {
-	w.args <- nil
-}
-
-func (w *goWorkerWithFunc) lastUsedTime() time.Time {
-	return w.lastUsed
-}
-
-func (w *goWorkerWithFunc) inputFunc(func()) {
-	panic("unreachable")
-}
-
-func (w *goWorkerWithFunc) inputParam(arg interface{}) {
-	w.args <- arg
 }

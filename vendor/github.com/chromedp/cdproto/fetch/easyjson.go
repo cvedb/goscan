@@ -750,9 +750,7 @@ func easyjsonC5a4559bDecodeGithubComChromedpCdprotoFetch8(in *jlexer.Lexer, out 
 				in.Delim(']')
 			}
 		case "networkId":
-			out.NetworkID = network.RequestID(in.String())
-		case "redirectedRequestId":
-			out.RedirectedRequestID = RequestID(in.String())
+			out.NetworkID = RequestID(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -828,11 +826,6 @@ func easyjsonC5a4559bEncodeGithubComChromedpCdprotoFetch8(out *jwriter.Writer, i
 		const prefix string = ",\"networkId\":"
 		out.RawString(prefix)
 		out.String(string(in.NetworkID))
-	}
-	if in.RedirectedRequestID != "" {
-		const prefix string = ",\"redirectedRequestId\":"
-		out.RawString(prefix)
-		out.String(string(in.RedirectedRequestID))
 	}
 	out.RawByte('}')
 }

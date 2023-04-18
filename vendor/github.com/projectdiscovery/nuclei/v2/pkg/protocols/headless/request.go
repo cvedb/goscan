@@ -6,24 +6,22 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"golang.org/x/exp/maps"
 
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v2/pkg/output"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols"
-	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/contextargs"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/generators"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/helpers/eventcreator"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/helpers/responsehighlighter"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/interactsh"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/utils/vardump"
-	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/http/utils"
+	httpProtocol "github.com/projectdiscovery/nuclei/v2/pkg/protocols/http"
 	templateTypes "github.com/projectdiscovery/nuclei/v2/pkg/templates/types"
 )
 
 var _ protocols.Request = &Request{}
 
-const errCouldGetHtmlElement = "could get html element"
+const couldGetHtmlElementErrorMessage = "could get html element"
 
 // Type returns the type of the protocol request
 func (request *Request) Type() templateTypes.ProtocolType {
@@ -31,26 +29,16 @@ func (request *Request) Type() templateTypes.ProtocolType {
 }
 
 // ExecuteWithResults executes the protocol requests and returns results instead of writing them.
-func (request *Request) ExecuteWithResults(input *contextargs.Context, metadata, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
-	inputURL := input.MetaInput.Input
+func (request *Request) ExecuteWithResults(inputURL string, metadata, previous output.InternalEvent /*TODO review unused parameter*/, callback protocols.OutputEventCallback) error {
 	if request.options.Browser.UserAgent() == "" {
 		request.options.Browser.SetUserAgent(request.compiledUserAgent)
 	}
 
-	vars := utils.GenerateVariablesWithContextArgs(input, false)
+	vars := GenerateVariables(inputURL)
 	payloads := generators.BuildPayloadFromOptions(request.options.Options)
 	values := generators.MergeMaps(vars, metadata, payloads)
 	variablesMap := request.options.Variables.Evaluate(values)
 	payloads = generators.MergeMaps(variablesMap, payloads)
-
-	// check for operator matches by wrapping callback
-	gotmatches := false
-	wrappedCallback := func(results *output.InternalWrappedEvent) {
-		callback(results)
-		if results != nil && results.OperatorsResult != nil {
-			gotmatches = results.OperatorsResult.Matched
-		}
-	}
 
 	if request.generator != nil {
 		iterator := request.generator.NewIterator()
@@ -59,17 +47,14 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, metadata,
 			if !ok {
 				break
 			}
-			if gotmatches && (request.StopAtFirstMatch || request.options.Options.StopAtFirstMatch || request.options.StopAtFirstMatch) {
-				return nil
-			}
 			value = generators.MergeMaps(value, payloads)
-			if err := request.executeRequestWithPayloads(inputURL, value, previous, wrappedCallback); err != nil {
+			if err := request.executeRequestWithPayloads(inputURL, value, previous, callback); err != nil {
 				return err
 			}
 		}
 	} else {
-		value := maps.Clone(payloads)
-		if err := request.executeRequestWithPayloads(inputURL, value, previous, wrappedCallback); err != nil {
+		value := generators.CopyMap(payloads)
+		if err := request.executeRequestWithPayloads(inputURL, value, previous, callback); err != nil {
 			return err
 		}
 	}
@@ -81,11 +66,11 @@ func (request *Request) executeRequestWithPayloads(inputURL string, payloads map
 	if err != nil {
 		request.options.Output.Request(request.options.TemplatePath, inputURL, request.Type().String(), err)
 		request.options.Progress.IncrementFailedRequestsBy(1)
-		return errors.Wrap(err, errCouldGetHtmlElement)
+		return errors.Wrap(err, couldGetHtmlElementErrorMessage)
 	}
 	defer instance.Close()
 
-	if vardump.EnableVarDump {
+	if request.options.Options.Debug || request.options.Options.DebugRequests {
 		gologger.Debug().Msgf("Protocol request variables: \n%s\n", vardump.DumpVariables(payloads))
 	}
 
@@ -95,14 +80,14 @@ func (request *Request) executeRequestWithPayloads(inputURL string, payloads map
 	if err != nil {
 		request.options.Output.Request(request.options.TemplatePath, inputURL, request.Type().String(), err)
 		request.options.Progress.IncrementFailedRequestsBy(1)
-		return errors.Wrap(err, errCouldGetHtmlElement)
+		return errors.Wrap(err, couldGetHtmlElementErrorMessage)
 	}
 	timeout := time.Duration(request.options.Options.PageTimeout) * time.Second
 	out, page, err := instance.Run(parsedURL, request.Steps, payloads, timeout)
 	if err != nil {
 		request.options.Output.Request(request.options.TemplatePath, inputURL, request.Type().String(), err)
 		request.options.Progress.IncrementFailedRequestsBy(1)
-		return errors.Wrap(err, errCouldGetHtmlElement)
+		return errors.Wrap(err, couldGetHtmlElementErrorMessage)
 	}
 	defer page.Close()
 
@@ -111,16 +96,14 @@ func (request *Request) executeRequestWithPayloads(inputURL string, payloads map
 	gologger.Verbose().Msgf("Sent Headless request to %s", inputURL)
 
 	reqBuilder := &strings.Builder{}
-	if request.options.Options.Debug || request.options.Options.DebugRequests || request.options.Options.DebugResponse {
+	if request.options.Options.Debug || request.options.Options.DebugRequests {
 		gologger.Info().Msgf("[%s] Dumped Headless request for %s", request.options.TemplateID, inputURL)
 
 		for _, act := range request.Steps {
-			actStepStr := act.String()
-			actStepStr = strings.ReplaceAll(actStepStr, "{{BaseURL}}", inputURL)
-			reqBuilder.WriteString("\t" + actStepStr + "\n")
+			reqBuilder.WriteString(act.String())
+			reqBuilder.WriteString("\n")
 		}
-		gologger.Debug().Msgf(reqBuilder.String())
-
+		gologger.Print().Msgf(reqBuilder.String())
 	}
 
 	var responseBody string
@@ -165,4 +148,14 @@ func dumpResponse(event *output.InternalWrappedEvent, requestOptions *protocols.
 		highlightedResponse := responsehighlighter.Highlight(event.OperatorsResult, responseBody, cliOptions.NoColor, false)
 		gologger.Debug().Msgf("[%s] Dumped Headless response for %s\n\n%s", requestOptions.TemplateID, input, highlightedResponse)
 	}
+}
+
+// GenerateVariables will create default variables
+func GenerateVariables(URL string) map[string]interface{} {
+	parsed, err := url.Parse(URL)
+	if err != nil {
+		return nil
+	}
+
+	return httpProtocol.GenerateVariables(parsed, false)
 }

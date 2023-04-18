@@ -6,5 +6,4 @@ type SessionInfo struct {
 	PrivateKey    string `yaml:"private-key"`
 	CorrelationID string `yaml:"correlation-id"`
 	SecretKey     string `yaml:"secret-key"`
-	PublicKey     string `yaml:"pyblic-key"`
 }

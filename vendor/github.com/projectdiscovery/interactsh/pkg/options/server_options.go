@@ -9,7 +9,7 @@ type CLIServerOptions struct {
 	Config                   string
 	Version                  bool
 	Debug                    bool
-	Domains                  goflags.StringSlice
+	Domains                  goflags.CommaSeparatedStringSlice
 	DnsPort                  int
 	IPAddress                string
 	ListenIP                 string
@@ -18,7 +18,6 @@ type CLIServerOptions struct {
 	Hostmasters              []string
 	LdapWithFullLogger       bool
 	Eviction                 int
-	NoEviction               bool
 	Responder                bool
 	Smb                      bool
 	SmbPort                  int
@@ -36,20 +35,12 @@ type CLIServerOptions struct {
 	RootTLD                  bool
 	FTPDirectory             string
 	SkipAcme                 bool
-	DynamicResp              bool
 	CorrelationIdLength      int
 	CorrelationIdNonceLength int
 	ScanEverywhere           bool
 	CertificatePath          string
-	CustomRecords            string
 	PrivateKeyPath           string
 	OriginIPHeader           string
-	DiskStorage              bool
-	DiskStoragePath          string
-	EnablePprof              bool
-	EnableMetrics            bool
-	Verbose                  bool
-	DisableUpdateCheck       bool
 }
 
 func (cliServerOptions *CLIServerOptions) AsServerOptions() *server.Options {
@@ -72,7 +63,6 @@ func (cliServerOptions *CLIServerOptions) AsServerOptions() *server.Options {
 		HTTPDirectory:            cliServerOptions.HTTPDirectory,
 		Token:                    cliServerOptions.Token,
 		Version:                  Version,
-		DynamicResp:              cliServerOptions.DynamicResp,
 		OriginURL:                cliServerOptions.OriginURL,
 		RootTLD:                  cliServerOptions.RootTLD,
 		FTPDirectory:             cliServerOptions.FTPDirectory,
@@ -80,11 +70,7 @@ func (cliServerOptions *CLIServerOptions) AsServerOptions() *server.Options {
 		CorrelationIdNonceLength: cliServerOptions.CorrelationIdNonceLength,
 		ScanEverywhere:           cliServerOptions.ScanEverywhere,
 		CertificatePath:          cliServerOptions.CertificatePath,
-		CustomRecords:            cliServerOptions.CustomRecords,
 		PrivateKeyPath:           cliServerOptions.PrivateKeyPath,
 		OriginIPHeader:           cliServerOptions.OriginIPHeader,
-		DiskStorage:              cliServerOptions.DiskStorage,
-		DiskStoragePath:          cliServerOptions.DiskStoragePath,
-		EnableMetrics:            cliServerOptions.EnableMetrics,
 	}
 }

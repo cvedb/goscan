@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"syscall"
@@ -320,19 +319,18 @@ func (p *Process) PpidWithContext(ctx context.Context) (int32, error) {
 }
 
 func (p *Process) NameWithContext(ctx context.Context) (string, error) {
-	if p.Pid == 0 {
-		return "System Idle Process", nil
-	}
-	if p.Pid == 4 {
-		return "System", nil
-	}
-
-	exe, err := p.ExeWithContext(ctx)
+	ppid, _, name, err := getFromSnapProcess(p.Pid)
 	if err != nil {
 		return "", fmt.Errorf("could not get Name: %s", err)
 	}
 
-	return filepath.Base(exe), nil
+	// if no errors and not cached already, cache ppid
+	p.parent = ppid
+	if 0 == p.getPpid() {
+		p.setPpid(ppid)
+	}
+
+	return name, nil
 }
 
 func (p *Process) TgidWithContext(ctx context.Context) (int32, error) {
@@ -410,7 +408,7 @@ func (p *Process) CwdWithContext(_ context.Context) (string, error) {
 		}
 		if userProcParams.CurrentDirectoryPathNameLength > 0 {
 			cwd := readProcessMemory(syscall.Handle(h), procIs32Bits, uint64(userProcParams.CurrentDirectoryPathAddress), uint(userProcParams.CurrentDirectoryPathNameLength))
-			if len(cwd) != int(userProcParams.CurrentDirectoryPathNameLength) {
+			if len(cwd) != int(userProcParams.CurrentDirectoryPathAddress) {
 				return "", errors.New("cannot read current working directory")
 			}
 
@@ -989,9 +987,15 @@ func is32BitProcess(h windows.Handle) bool {
 
 	var procIs32Bits bool
 	switch processorArchitecture {
-	case PROCESSOR_ARCHITECTURE_INTEL, PROCESSOR_ARCHITECTURE_ARM:
+	case PROCESSOR_ARCHITECTURE_INTEL:
+		fallthrough
+	case PROCESSOR_ARCHITECTURE_ARM:
 		procIs32Bits = true
-	case PROCESSOR_ARCHITECTURE_ARM64, PROCESSOR_ARCHITECTURE_IA64, PROCESSOR_ARCHITECTURE_AMD64:
+	case PROCESSOR_ARCHITECTURE_ARM64:
+		fallthrough
+	case PROCESSOR_ARCHITECTURE_IA64:
+		fallthrough
+	case PROCESSOR_ARCHITECTURE_AMD64:
 		var wow64 uint
 
 		ret, _, _ := common.ProcNtQueryInformationProcess.Call(

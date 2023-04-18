@@ -9,20 +9,16 @@ import (
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 
+	"github.com/projectdiscovery/fileutil"
 	"github.com/projectdiscovery/gologger"
-	fileutil "github.com/projectdiscovery/utils/file"
 )
 
 // Config contains the internal nuclei engine configuration
 type Config struct {
 	TemplatesDirectory string `json:"nuclei-templates-directory,omitempty"`
-
-	CustomS3TemplatesDirectory     string `json:"custom-s3-templates-directory"`
-	CustomGithubTemplatesDirectory string `json:"custom-github-templates-directory"`
-
-	TemplateVersion  string `json:"nuclei-templates-version,omitempty"`
-	NucleiVersion    string `json:"nuclei-version,omitempty"`
-	NucleiIgnoreHash string `json:"nuclei-ignore-hash,omitempty"`
+	TemplateVersion    string `json:"nuclei-templates-version,omitempty"`
+	NucleiVersion      string `json:"nuclei-version,omitempty"`
+	NucleiIgnoreHash   string `json:"nuclei-ignore-hash,omitempty"`
 
 	NucleiLatestVersion          string `json:"nuclei-latest-version"`
 	NucleiTemplatesLatestVersion string `json:"nuclei-templates-latest-version"`
@@ -32,7 +28,7 @@ type Config struct {
 const nucleiConfigFilename = ".templates-config.json"
 
 // Version is the current version of nuclei
-const Version = `2.9.1`
+const Version = `2.7.7`
 
 var customConfigDirectory string
 

@@ -7,11 +7,11 @@ import (
 	"github.com/chromedp/cdproto/runtime"
 )
 
-// CallAction are actions that calls a JavaScript function using
+// CallAction are actions that calls a Javascript function using
 // runtime.CallFunctionOn.
 type CallAction Action
 
-// CallFunctionOn is an action to call a JavaScript function, unmarshaling
+// CallFunctionOn is an action to call a Javascript function, unmarshaling
 // the result of the function to res.
 //
 // The handling of res is the same as that of Evaluate.
@@ -28,7 +28,7 @@ func CallFunctionOn(functionDeclaration string, res interface{}, opt CallOption,
 	})
 }
 
-func callFunctionOn(ctx context.Context, functionDeclaration string, res interface{}, opt CallOption, args ...interface{}) (*runtime.RemoteObject, error) {
+func callFunctionOn(ctx context.Context, functionDeclaration string, res interface{}, opt CallOption, args ...interface{}) (bool, error) {
 	// set up parameters
 	p := runtime.CallFunctionOn(functionDeclaration).
 		WithSilent(true)
@@ -51,7 +51,7 @@ func callFunctionOn(ctx context.Context, functionDeclaration string, res interfa
 			ea.append(arg)
 		}
 		if ea.err != nil {
-			return nil, ea.err
+			return false, ea.err
 		}
 		p = p.WithArguments(ea.args)
 	}
@@ -59,13 +59,13 @@ func callFunctionOn(ctx context.Context, functionDeclaration string, res interfa
 	// call
 	v, exp, err := p.Do(ctx)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 	if exp != nil {
-		return nil, exp
+		return false, exp
 	}
 
-	return v, parseRemoteObject(v, res)
+	return parseRemoteObject(v, res)
 }
 
 // CallOption is a function to modify the runtime.CallFunctionOnParams

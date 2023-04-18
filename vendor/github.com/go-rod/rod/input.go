@@ -44,7 +44,7 @@ func (k *Keyboard) modifiers() int {
 // use method like Page.InsertText .
 func (k *Keyboard) Press(key input.Key) error {
 	defer k.page.tryTrace(TraceTypeInput, "press key: "+key.Info().Code)()
-	k.page.browser.trySlowMotion()
+	k.page.browser.trySlowmotion()
 
 	k.Lock()
 	defer k.Unlock()
@@ -184,7 +184,7 @@ func (ka *KeyActions) balance() []KeyAction {
 // InsertText is like pasting text into the page
 func (p *Page) InsertText(text string) error {
 	defer p.tryTrace(TraceTypeInput, "insert text "+text)()
-	p.browser.trySlowMotion()
+	p.browser.trySlowmotion()
 
 	err := proto.InputInsertText{Text: text}.Call(p)
 	return err
@@ -198,7 +198,8 @@ type Mouse struct {
 
 	id string // mouse svg dom element id
 
-	pos proto.Point
+	x float64
+	y float64
 
 	// the buttons is currently being pressed, reflects the press order
 	buttons []proto.InputMouseButton
@@ -209,80 +210,51 @@ func (p *Page) newMouse() *Page {
 	return p
 }
 
-// Position of current cursor
-func (m *Mouse) Position() proto.Point {
+// Move to the absolute position with specified steps
+func (m *Mouse) Move(x, y float64, steps int) error {
 	m.Lock()
 	defer m.Unlock()
-	return m.pos
-}
 
-// MoveTo the absolute position
-func (m *Mouse) MoveTo(p proto.Point) error {
-	m.Lock()
-	defer m.Unlock()
+	if steps < 1 {
+		steps = 1
+	}
+
+	stepX := (x - m.x) / float64(steps)
+	stepY := (y - m.y) / float64(steps)
 
 	button, buttons := input.EncodeMouseButton(m.buttons)
 
-	m.page.browser.trySlowMotion()
+	for i := 0; i < steps; i++ {
+		m.page.browser.trySlowmotion()
 
-	err := proto.InputDispatchMouseEvent{
-		Type:      proto.InputDispatchMouseEventTypeMouseMoved,
-		X:         p.X,
-		Y:         p.Y,
-		Button:    button,
-		Buttons:   gson.Int(buttons),
-		Modifiers: m.page.Keyboard.getModifiers(),
-	}.Call(m.page)
-	if err != nil {
-		return err
-	}
+		toX := m.x + stepX
+		toY := m.y + stepY
 
-	// to make sure set only when call is successful
-	m.pos = p
+		err := proto.InputDispatchMouseEvent{
+			Type:      proto.InputDispatchMouseEventTypeMouseMoved,
+			X:         toX,
+			Y:         toY,
+			Button:    button,
+			Buttons:   gson.Int(buttons),
+			Modifiers: m.page.Keyboard.getModifiers(),
+		}.Call(m.page)
+		if err != nil {
+			return err
+		}
 
-	if m.page.browser.trace {
-		if !m.updateMouseTracer() {
-			m.initMouseTracer()
-			m.updateMouseTracer()
+		// to make sure set only when call is successful
+		m.x = toX
+		m.y = toY
+
+		if m.page.browser.trace {
+			if !m.updateMouseTracer() {
+				m.initMouseTracer()
+				m.updateMouseTracer()
+			}
 		}
 	}
 
 	return nil
-}
-
-// MoveAlong the guide function.
-// Every time the guide function is called it should return the next mouse position, return true to stop.
-// Read the source code of [Mouse.MoveLinear] as an example to use this method.
-func (m *Mouse) MoveAlong(guide func() (proto.Point, bool)) error {
-	for {
-		p, stop := guide()
-		if stop {
-			return m.MoveTo(p)
-		}
-
-		err := m.MoveTo(p)
-		if err != nil {
-			return err
-		}
-	}
-}
-
-// MoveLinear to the absolute position with the given steps.
-// Such as move from (0,0) to (6,6) with 3 steps, the mouse will first move to (2,2) then (4,4) then (6,6).
-func (m *Mouse) MoveLinear(to proto.Point, steps int) error {
-	p := m.Position()
-	step := to.Minus(p).Scale(1 / float64(steps))
-	count := 0
-
-	return m.MoveAlong(func() (proto.Point, bool) {
-		count++
-		if count == steps {
-			return to, true
-		}
-
-		p = p.Add(step)
-		return p, false
-	})
 }
 
 // Scroll the relative offset with specified steps
@@ -291,7 +263,7 @@ func (m *Mouse) Scroll(offsetX, offsetY float64, steps int) error {
 	defer m.Unlock()
 
 	defer m.page.tryTrace(TraceTypeInput, fmt.Sprintf("scroll (%.2f, %.2f)", offsetX, offsetY))()
-	m.page.browser.trySlowMotion()
+	m.page.browser.trySlowmotion()
 
 	if steps < 1 {
 		steps = 1
@@ -305,13 +277,13 @@ func (m *Mouse) Scroll(offsetX, offsetY float64, steps int) error {
 	for i := 0; i < steps; i++ {
 		err := proto.InputDispatchMouseEvent{
 			Type:      proto.InputDispatchMouseEventTypeMouseWheel,
+			X:         m.x,
+			Y:         m.y,
 			Button:    button,
 			Buttons:   gson.Int(buttons),
 			Modifiers: m.page.Keyboard.getModifiers(),
 			DeltaX:    stepX,
 			DeltaY:    stepY,
-			X:         m.pos.X,
-			Y:         m.pos.Y,
 		}.Call(m.page)
 		if err != nil {
 			return err
@@ -322,7 +294,7 @@ func (m *Mouse) Scroll(offsetX, offsetY float64, steps int) error {
 }
 
 // Down holds the button down
-func (m *Mouse) Down(button proto.InputMouseButton, clickCount int) error {
+func (m *Mouse) Down(button proto.InputMouseButton, clicks int) error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -334,10 +306,10 @@ func (m *Mouse) Down(button proto.InputMouseButton, clickCount int) error {
 		Type:       proto.InputDispatchMouseEventTypeMousePressed,
 		Button:     button,
 		Buttons:    gson.Int(buttons),
-		ClickCount: clickCount,
+		ClickCount: clicks,
 		Modifiers:  m.page.Keyboard.getModifiers(),
-		X:          m.pos.X,
-		Y:          m.pos.Y,
+		X:          m.x,
+		Y:          m.y,
 	}.Call(m.page)
 	if err != nil {
 		return err
@@ -347,7 +319,7 @@ func (m *Mouse) Down(button proto.InputMouseButton, clickCount int) error {
 }
 
 // Up releases the button
-func (m *Mouse) Up(button proto.InputMouseButton, clickCount int) error {
+func (m *Mouse) Up(button proto.InputMouseButton, clicks int) error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -365,10 +337,10 @@ func (m *Mouse) Up(button proto.InputMouseButton, clickCount int) error {
 		Type:       proto.InputDispatchMouseEventTypeMouseReleased,
 		Button:     button,
 		Buttons:    gson.Int(buttons),
-		ClickCount: clickCount,
+		ClickCount: clicks,
 		Modifiers:  m.page.Keyboard.getModifiers(),
-		X:          m.pos.X,
-		Y:          m.pos.Y,
+		X:          m.x,
+		Y:          m.y,
 	}.Call(m.page)
 	if err != nil {
 		return err
@@ -378,15 +350,15 @@ func (m *Mouse) Up(button proto.InputMouseButton, clickCount int) error {
 }
 
 // Click the button. It's the combination of Mouse.Down and Mouse.Up
-func (m *Mouse) Click(button proto.InputMouseButton, clickCount int) error {
-	m.page.browser.trySlowMotion()
+func (m *Mouse) Click(button proto.InputMouseButton) error {
+	m.page.browser.trySlowmotion()
 
-	err := m.Down(button, clickCount)
+	err := m.Down(button, 1)
 	if err != nil {
 		return err
 	}
 
-	return m.Up(button, clickCount)
+	return m.Up(button, 1)
 }
 
 // Touch presents a touch device, such as a hand with fingers, each finger is a proto.InputTouchPoint.
@@ -444,7 +416,7 @@ func (t *Touch) Cancel() error {
 // Tap dispatches a touchstart and touchend event.
 func (t *Touch) Tap(x, y float64) error {
 	defer t.page.tryTrace(TraceTypeInput, "touch")()
-	t.page.browser.trySlowMotion()
+	t.page.browser.trySlowmotion()
 
 	p := &proto.InputTouchPoint{X: x, Y: y}
 

@@ -12,8 +12,8 @@ Uses data from https://github.com/AliasIO/wappalyzer
 
 ### Using *go install*
 
-```sh
-go install -v github.com/projectdiscovery/wappalyzergo/cmd/update-fingerprints@latest
+```
+go install github.com/projectdiscovery/wappalyzergo/cmd/update-fingerprints
 ```
 
 After this command *wappalyzergo* library source will be in your current go.mod.

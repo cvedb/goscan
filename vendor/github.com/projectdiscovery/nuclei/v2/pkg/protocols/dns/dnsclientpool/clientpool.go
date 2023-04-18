@@ -5,7 +5,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/pkg/errors"
 	"github.com/projectdiscovery/nuclei/v2/pkg/types"
 	"github.com/projectdiscovery/retryabledns"
 )
@@ -37,11 +36,7 @@ func Init(options *types.Options) error {
 	if options.ResolversFile != "" {
 		resolvers = options.InternalResolversList
 	}
-	var err error
-	normalClient, err = retryabledns.New(resolvers, 1)
-	if err != nil {
-		return errors.Wrap(err, "could not create dns client")
-	}
+	normalClient = retryabledns.New(resolvers, 1)
 	return nil
 }
 
@@ -83,10 +78,7 @@ func Get(options *types.Options, configuration *Configuration) (*retryabledns.Cl
 	} else if len(configuration.Resolvers) > 0 {
 		resolvers = configuration.Resolvers
 	}
-	client, err := retryabledns.New(resolvers, configuration.Retries)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not create dns client")
-	}
+	client := retryabledns.New(resolvers, configuration.Retries)
 
 	poolMutex.Lock()
 	clientPool[hash] = client

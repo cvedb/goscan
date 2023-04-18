@@ -95,9 +95,7 @@ client, err := winrm.NewClient(endpoint, "Administrator", "secret")
 if err != nil {
 	panic(err)
 }
-ctx, cancel := context.WithCancel(context.Background())
-defer cancel()
-client.RunWithContext(ctx, "ipconfig /all", os.Stdout, os.Stderr)
+client.Run("ipconfig /all", os.Stdout, os.Stderr)
 ```
 
 or
@@ -115,9 +113,7 @@ if err != nil {
 	panic(err)
 }
 
-ctx, cancel := context.WithCancel(context.Background())
-defer cancel()
-_, err := client.RunWithContextWithInput(ctx, "ipconfig", os.Stdout, os.Stderr, os.Stdin)
+_, err := client.RunWithInput("ipconfig", os.Stdout, os.Stderr, os.Stdin)
 if err != nil {
 	panic(err)
 }
@@ -182,9 +178,7 @@ if err != nil {
         panic(err)
 }
 
-ctx, cancel := context.WithCancel(context.Background())
-defer cancel()
-_, err := client.RunWithContextWithInput(ctx, "ipconfig", os.Stdout, os.Stderr, os.Stdin)
+_, err := client.RunWithInput("ipconfig", os.Stdout, os.Stderr, os.Stdin)
 if err != nil {
         panic(err)
 }
@@ -221,9 +215,7 @@ package main
         panic(err)
     }
  
-    ctx, cancel := context.WithCancel(context.Background())
-    defer cancel()
-    _, err = client.RunWithContextWithInput(ctx, "ipconfig", os.Stdout, os.Stderr, os.Stdin)
+    _, err = client.RunWithInput("ipconfig", os.Stdout, os.Stderr, os.Stdin)
     if err != nil {
         panic(err)
     }
@@ -254,10 +246,8 @@ shell, err := client.CreateShell()
 if err != nil {
   panic(err)
 }
-ctx, cancel := context.WithCancel(context.Background())
-defer cancel()
 var cmd *winrm.Command
-cmd, err = shell.ExecuteWithContext(ctx, "cmd.exe")
+cmd, err = shell.Execute("cmd.exe")
 if err != nil {
   panic(err)
 }
@@ -311,19 +301,12 @@ func main() {
     if err != nil {
         log.Fatalf("failed to create client: %q", err)
     }
-    ctx, cancel := context.WithCancel(context.Background())
-    defer cancel()
-    _, err = client.RunWithContext(ctx, "whoami", os.Stdout, os.Stderr)
+    _, err = client.Run("whoami", os.Stdout, os.Stderr)
     if err != nil {
         log.Fatalf("failed to run command: %q", err)
     }
 }
 ```
-
-Note: canceling the `context.Context` passed as first argument to the various
-functions of the API will not cancel the HTTP requests themselves, it will
-rather cause a running command to be aborted on the remote machine via a call to
-`command.Stop()`.
 
 ## Developing on WinRM
 

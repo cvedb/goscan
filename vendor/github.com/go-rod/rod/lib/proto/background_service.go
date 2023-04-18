@@ -68,9 +68,6 @@ type BackgroundServiceBackgroundServiceEvent struct {
 
 	// EventMetadata A list of event-specific information.
 	EventMetadata []*BackgroundServiceEventMetadata `json:"eventMetadata"`
-
-	// StorageKey Storage key this event belongs to.
-	StorageKey string `json:"storageKey"`
 }
 
 // BackgroundServiceStartObserving Enables event updates for the service.

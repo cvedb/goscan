@@ -49,12 +49,9 @@ type Statement struct {
 }
 
 type join struct {
-	Name     string
-	Conds    []interface{}
-	On       *clause.Where
-	Selects  []string
-	Omits    []string
-	JoinType clause.JoinType
+	Name  string
+	Conds []interface{}
+	On    *clause.Where
 }
 
 // StatementModifier statement modifier interface
@@ -120,8 +117,6 @@ func (stmt *Statement) QuoteTo(writer clause.Writer, field interface{}) {
 				write(v.Raw, stmt.Schema.PrioritizedPrimaryField.DBName)
 			} else if len(stmt.Schema.DBNames) > 0 {
 				write(v.Raw, stmt.Schema.DBNames[0])
-			} else {
-				stmt.DB.AddError(ErrModelAccessibleFieldsRequired) //nolint:typecheck,errcheck
 			}
 		} else {
 			write(v.Raw, v.Name)
@@ -184,10 +179,6 @@ func (stmt *Statement) AddVar(writer clause.Writer, vars ...interface{}) {
 			} else {
 				stmt.AddVar(writer, v.GormValue(stmt.Context, stmt.DB))
 			}
-		case clause.Interface:
-			c := clause.Clause{Name: v.Name()}
-			v.MergeClause(&c)
-			c.Build(stmt)
 		case clause.Expression:
 			v.Build(stmt)
 		case driver.Valuer:
@@ -313,9 +304,6 @@ func (stmt *Statement) BuildCondition(query interface{}, args ...interface{}) []
 	conds := make([]clause.Expression, 0, 4)
 	args = append([]interface{}{query}, args...)
 	for idx, arg := range args {
-		if arg == nil {
-			continue
-		}
 		if valuer, ok := arg.(driver.Valuer); ok {
 			arg, _ = valuer.Value()
 		}
@@ -324,9 +312,11 @@ func (stmt *Statement) BuildCondition(query interface{}, args ...interface{}) []
 		case clause.Expression:
 			conds = append(conds, v)
 		case *DB:
-			v.executeScopes()
+			for _, scope := range v.Statement.scopes {
+				v = scope(v)
+			}
 
-			if cs, ok := v.Statement.Clauses["WHERE"]; ok && cs.Expression != nil {
+			if cs, ok := v.Statement.Clauses["WHERE"]; ok {
 				if where, ok := cs.Expression.(clause.Where); ok {
 					if len(where.Exprs) == 1 {
 						if orConds, ok := where.Exprs[0].(clause.OrConditions); ok {
@@ -334,12 +324,8 @@ func (stmt *Statement) BuildCondition(query interface{}, args ...interface{}) []
 						}
 					}
 					conds = append(conds, clause.And(where.Exprs...))
-				} else {
+				} else if cs.Expression != nil {
 					conds = append(conds, cs.Expression)
-				}
-				if v.Statement == stmt {
-					cs.Expression = nil
-					stmt.Statement.Clauses["WHERE"] = cs
 				}
 			}
 		case map[interface{}]interface{}:
@@ -554,9 +540,8 @@ func (stmt *Statement) clone() *Statement {
 }
 
 // SetColumn set column's value
-//
-//	stmt.SetColumn("Name", "jinzhu") // Hooks Method
-//	stmt.SetColumn("Name", "jinzhu", true) // Callbacks Method
+//   stmt.SetColumn("Name", "jinzhu") // Hooks Method
+//   stmt.SetColumn("Name", "jinzhu", true) // Callbacks Method
 func (stmt *Statement) SetColumn(name string, value interface{}, fromCallbacks ...bool) {
 	if v, ok := stmt.Dest.(map[string]interface{}); ok {
 		v[name] = value
@@ -672,41 +657,47 @@ func (stmt *Statement) SelectAndOmitColumns(requireCreate, requireUpdate bool) (
 	results := map[string]bool{}
 	notRestricted := false
 
-	processColumn := func(column string, result bool) {
+	// select columns
+	for _, column := range stmt.Selects {
 		if stmt.Schema == nil {
-			results[column] = result
+			results[column] = true
 		} else if column == "*" {
-			notRestricted = result
+			notRestricted = true
 			for _, dbName := range stmt.Schema.DBNames {
-				results[dbName] = result
+				results[dbName] = true
 			}
 		} else if column == clause.Associations {
 			for _, rel := range stmt.Schema.Relationships.Relations {
-				results[rel.Name] = result
+				results[rel.Name] = true
 			}
 		} else if field := stmt.Schema.LookUpField(column); field != nil && field.DBName != "" {
-			results[field.DBName] = result
+			results[field.DBName] = true
 		} else if matches := nameMatcher.FindStringSubmatch(column); len(matches) == 3 && (matches[1] == stmt.Table || matches[1] == "") {
-			if matches[2] == "*" {
-				for _, dbName := range stmt.Schema.DBNames {
-					results[dbName] = result
-				}
-			} else {
-				results[matches[2]] = result
-			}
+			results[matches[2]] = true
 		} else {
-			results[column] = result
+			results[column] = true
 		}
 	}
 
-	// select columns
-	for _, column := range stmt.Selects {
-		processColumn(column, true)
-	}
-
 	// omit columns
-	for _, column := range stmt.Omits {
-		processColumn(column, false)
+	for _, omit := range stmt.Omits {
+		if stmt.Schema == nil {
+			results[omit] = false
+		} else if omit == "*" {
+			for _, dbName := range stmt.Schema.DBNames {
+				results[dbName] = false
+			}
+		} else if omit == clause.Associations {
+			for _, rel := range stmt.Schema.Relationships.Relations {
+				results[rel.Name] = false
+			}
+		} else if field := stmt.Schema.LookUpField(omit); field != nil && field.DBName != "" {
+			results[field.DBName] = false
+		} else if matches := nameMatcher.FindStringSubmatch(omit); len(matches) == 2 {
+			results[matches[1]] = false
+		} else {
+			results[omit] = false
+		}
 	}
 
 	if stmt.Schema != nil {

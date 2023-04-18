@@ -840,6 +840,13 @@ requests:
           - "Location: /solr/"
 
       - type: word
+        part: header
+        name: apache-dubbo
+        words:
+          - 'WWW-Authenticate: Basic realm="dubbo"'
+        case-insensitive: true
+
+      - type: word
         name: apache-struts
         words:
           - content="Struts2 Showcase for Apache Struts Project"
@@ -3698,12 +3705,7 @@ requests:
       - type: word
         name: everything
         words:
-          - everything.gif
-
-      - type: word
-        name: everything
-        words:
-          - everything.png
+          - <img class="logo" src="/Everything.gif" alt="Everything">
 
       - type: word
         name: ewebeditor

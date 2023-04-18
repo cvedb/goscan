@@ -21,7 +21,6 @@ var reNext = regexp.MustCompile(`<a href="([A-Za-z0-9/.]+)"><b>`)
 
 type agent struct {
 	results chan subscraping.Result
-	errors  int
 	session *subscraping.Session
 }
 
@@ -36,7 +35,6 @@ func (a *agent) enumerate(ctx context.Context, baseURL string) {
 	isnotfound := resp != nil && resp.StatusCode == http.StatusNotFound
 	if err != nil && !isnotfound {
 		a.results <- subscraping.Result{Source: "sitedossier", Type: subscraping.Error, Error: err}
-		a.errors++
 		a.session.DiscardHTTPResponse(resp)
 		return
 	}
@@ -44,7 +42,6 @@ func (a *agent) enumerate(ctx context.Context, baseURL string) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		a.results <- subscraping.Result{Source: "sitedossier", Type: subscraping.Error, Error: err}
-		a.errors++
 		resp.Body.Close()
 		return
 	}
@@ -64,17 +61,11 @@ func (a *agent) enumerate(ctx context.Context, baseURL string) {
 }
 
 // Source is the passive scraping agent
-type Source struct {
-	timeTaken time.Duration
-	errors    int
-	results   int
-}
+type Source struct{}
 
 // Run function returns all subdomains found with the service
 func (s *Source) Run(ctx context.Context, domain string, session *subscraping.Session) <-chan subscraping.Result {
 	results := make(chan subscraping.Result)
-	s.errors = 0
-	s.results = 0
 
 	a := agent{
 		session: session,
@@ -82,14 +73,8 @@ func (s *Source) Run(ctx context.Context, domain string, session *subscraping.Se
 	}
 
 	go func() {
-		defer func(startTime time.Time) {
-			s.timeTaken = time.Since(startTime)
-			close(a.results)
-		}(time.Now())
-
 		a.enumerate(ctx, fmt.Sprintf("http://www.sitedossier.com/parentdomain/%s", domain))
-		s.errors = a.errors
-		s.results = len(a.results)
+		close(a.results)
 	}()
 
 	return a.results
@@ -98,28 +83,4 @@ func (s *Source) Run(ctx context.Context, domain string, session *subscraping.Se
 // Name returns the name of the source
 func (s *Source) Name() string {
 	return "sitedossier"
-}
-
-func (s *Source) IsDefault() bool {
-	return false
-}
-
-func (s *Source) HasRecursiveSupport() bool {
-	return false
-}
-
-func (s *Source) NeedsKey() bool {
-	return false
-}
-
-func (s *Source) AddApiKeys(_ []string) {
-	// no key needed
-}
-
-func (s *Source) Statistics() subscraping.Statistics {
-	return subscraping.Statistics{
-		Errors:    s.errors,
-		Results:   s.results,
-		TimeTaken: s.timeTaken,
-	}
 }

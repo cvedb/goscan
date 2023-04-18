@@ -3,7 +3,6 @@ package launcher
 
 import (
 	"context"
-	"crypto"
 	"errors"
 	"fmt"
 	"io"
@@ -254,23 +253,6 @@ func (l *Launcher) Devtools(autoOpenForTabs bool) *Launcher {
 	return l.Delete("auto-open-devtools-for-tabs")
 }
 
-// IgnoreCerts configure the Chrome's ignore-certificate-errors-spki-list argument with the public keys.
-func (l *Launcher) IgnoreCerts(pks []crypto.PublicKey) error {
-	spkis := make([]string, 0, len(pks))
-
-	for _, pk := range pks {
-		spki, err := certSPKI(pk)
-		if err != nil {
-			return fmt.Errorf("certSPKI: %w", err)
-		}
-		spkis = append(spkis, string(spki))
-	}
-
-	l.Set("ignore-certificate-errors-spki-list", spkis...)
-
-	return nil
-}
-
 // UserDataDir is where the browser will look for all of its state, such as cookie and cache.
 // When set to empty, browser will use current OS home dir.
 // Related doc: https://chromium.googlesource.com/chromium/src/+/master/docs/user_data_dir.md
@@ -302,9 +284,8 @@ func (l *Launcher) RemoteDebuggingPort(port int) *Launcher {
 	return l.Set(flags.RemoteDebuggingPort, fmt.Sprintf("%d", port))
 }
 
-// Proxy for the browser
+// Proxy switch. When disabled leakless will be disabled.
 func (l *Launcher) Proxy(host string) *Launcher {
-	_ = l.browser.Proxy(host)
 	return l.Set(flags.ProxyServer, host)
 }
 
@@ -326,7 +307,7 @@ func (l *Launcher) StartURL(u string) *Launcher {
 	return l.Set("", u)
 }
 
-// FormatArgs returns the formatted arg list for cli
+// FormatArgs returns the formated arg list for cli
 func (l *Launcher) FormatArgs() []string {
 	execArgs := []string{}
 	for k, v := range l.Flags {

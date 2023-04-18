@@ -9,12 +9,12 @@ import (
 	"github.com/chromedp/cdproto/runtime"
 )
 
-// PollAction are actions that will wait for a general JavaScript predicate.
+// PollAction are actions that will wait for a general Javascript predicate.
 //
-// See [Poll] for details on building poll tasks.
+// See Poll for details on building poll tasks.
 type PollAction Action
 
-// pollTask holds information pertaining to a poll task.
+// pollTask holds information pertaining to an poll task.
 //
 // See Poll for details on building poll tasks.
 type pollTask struct {
@@ -66,7 +66,7 @@ func (p *pollTask) Do(ctx context.Context) error {
 	args = append(args, p.timeout.Milliseconds())
 	args = append(args, p.args...)
 
-	r, err := callFunctionOn(ctx, waitForPredicatePageFunction, p.res,
+	undefined, err := callFunctionOn(ctx, waitForPredicatePageFunction, p.res,
 		func(p *runtime.CallFunctionOnParams) *runtime.CallFunctionOnParams {
 			return p.WithExecutionContextID(execCtx).
 				WithAwaitPromise(true).
@@ -75,23 +75,24 @@ func (p *pollTask) Do(ctx context.Context) error {
 		args...,
 	)
 
-	if r != nil && r.Type == "undefined" {
+	if undefined {
 		return ErrPollingTimeout
 	}
 
 	return err
 }
 
-// Poll is a poll action that will wait for a general JavaScript predicate.
-// It builds the predicate from a JavaScript expression.
+// Poll is a poll action that will wait for a general Javascript predicate.
+// It builds the predicate from a Javascript expression.
 //
-// This is a copy of puppeteer's [page.waitForFunction].
+// This is a copy of puppeteer's page.waitForFunction.
+// see https://github.com/puppeteer/puppeteer/blob/v8.0.0/docs/api.md#pagewaitforfunctionpagefunction-options-args.
 // It's named Poll intentionally to avoid messing up with the Wait* query actions.
 // The behavior is not guaranteed to be compatible.
 // For example, our implementation makes the poll task not survive from a navigation,
 // and an error is raised in this case (see unit test TestPoll/NotSurviveNavigation).
 //
-// # Polling Options
+// Polling Options
 //
 // The default polling mode is "raf", to constantly execute pageFunction in requestAnimationFrame callback.
 // This is the tightest polling mode which is suitable to observe styling changes.
@@ -106,18 +107,16 @@ func (p *pollTask) Do(ctx context.Context) error {
 //
 // The WithPollingArgs option provides extra arguments to pass to the predicate.
 // Only apply this option when the predicate is built from a function.
-// See [PollFunction].
-//
-// [page.waitForFunction]: https://github.com/puppeteer/puppeteer/blob/v8.0.0/docs/api.md#pagewaitforfunctionpagefunction-options-args
+// See PollFunction.
 func Poll(expression string, res interface{}, opts ...PollOption) PollAction {
 	predicate := fmt.Sprintf(`return (%s);`, expression)
 	return poll(predicate, res, opts...)
 }
 
-// PollFunction is a poll action that will wait for a general JavaScript predicate.
-// It builds the predicate from a JavaScript function.
+// PollFunction is a poll action that will wait for a general Javascript predicate.
+// It builds the predicate from a Javascript function.
 //
-// See [Poll] for details on building poll tasks.
+// See Poll for details on building poll tasks.
 func PollFunction(pageFunction string, res interface{}, opts ...PollOption) PollAction {
 	predicate := fmt.Sprintf(`return (%s)(...args);`, pageFunction)
 
@@ -139,7 +138,7 @@ func poll(predicate string, res interface{}, opts ...PollOption) PollAction {
 	return p
 }
 
-// PollOption is a poll task option.
+// PollOption is an poll task option.
 type PollOption = func(task *pollTask)
 
 // WithPollingInterval makes it to poll the predicate with the specified interval.

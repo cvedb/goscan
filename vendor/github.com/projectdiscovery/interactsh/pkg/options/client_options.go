@@ -1,10 +1,6 @@
 package options
 
-import "github.com/projectdiscovery/goflags"
-
 type CLIClientOptions struct {
-	Match                    goflags.StringSlice
-	Filter                   goflags.StringSlice
 	Config                   string
 	Version                  bool
 	ServerURL                string
@@ -21,6 +17,4 @@ type CLIClientOptions struct {
 	CorrelationIdLength      int
 	CorrelationIdNonceLength int
 	SessionFile              string
-	Asn                      bool
-	DisableUpdateCheck       bool
 }

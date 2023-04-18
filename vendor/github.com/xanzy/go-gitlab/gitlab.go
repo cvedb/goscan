@@ -51,12 +51,12 @@ const (
 
 // AuthType represents an authentication type within GitLab.
 //
-// GitLab API docs: https://docs.gitlab.com/ee/api/
+// GitLab API docs: https://docs.gitlab.com/ce/api/
 type AuthType int
 
 // List of available authentication types.
 //
-// GitLab API docs: https://docs.gitlab.com/ee/api/
+// GitLab API docs: https://docs.gitlab.com/ce/api/
 const (
 	BasicAuth AuthType = iota
 	JobToken
@@ -96,9 +96,6 @@ type Client struct {
 	// Protects the token field from concurrent read/write accesses.
 	tokenLock sync.RWMutex
 
-	// Default request options applied to every request.
-	defaultRequestOptions []RequestOptionFunc
-
 	// User agent used when communicating with the GitLab API.
 	UserAgent string
 
@@ -121,7 +118,6 @@ type Client struct {
 	DeploymentMergeRequests *DeploymentMergeRequestsService
 	Deployments             *DeploymentsService
 	Discussions             *DiscussionsService
-	DockerfileTemplate      *DockerfileTemplatesService
 	Environments            *EnvironmentsService
 	EpicIssues              *EpicIssuesService
 	Epics                   *EpicsService
@@ -160,7 +156,6 @@ type Client struct {
 	Markdown                *MarkdownService
 	MergeRequestApprovals   *MergeRequestApprovalsService
 	MergeRequests           *MergeRequestsService
-	Metadata                *MetadataService
 	Milestones              *MilestonesService
 	Namespaces              *NamespacesService
 	Notes                   *NotesService
@@ -176,7 +171,6 @@ type Client struct {
 	ProjectAccessTokens     *ProjectAccessTokensService
 	ProjectBadges           *ProjectBadgesService
 	ProjectCluster          *ProjectClustersService
-	ProjectFeatureFlags     *ProjectFeatureFlagService
 	ProjectImportExport     *ProjectImportExportService
 	ProjectIterations       *ProjectIterationsService
 	ProjectMembers          *ProjectMembersService
@@ -196,7 +190,6 @@ type Client struct {
 	ResourceLabelEvents     *ResourceLabelEventsService
 	ResourceMilestoneEvents *ResourceMilestoneEventsService
 	ResourceStateEvents     *ResourceStateEventsService
-	ResourceWeightEvents    *ResourceWeightEventsService
 	Runners                 *RunnersService
 	Search                  *SearchService
 	Services                *ServicesService
@@ -328,7 +321,6 @@ func newClient(options ...ClientOptionFunc) (*Client, error) {
 	c.DeploymentMergeRequests = &DeploymentMergeRequestsService{client: c}
 	c.Deployments = &DeploymentsService{client: c}
 	c.Discussions = &DiscussionsService{client: c}
-	c.DockerfileTemplate = &DockerfileTemplatesService{client: c}
 	c.Environments = &EnvironmentsService{client: c}
 	c.EpicIssues = &EpicIssuesService{client: c}
 	c.Epics = &EpicsService{client: c}
@@ -367,7 +359,6 @@ func newClient(options ...ClientOptionFunc) (*Client, error) {
 	c.Markdown = &MarkdownService{client: c}
 	c.MergeRequestApprovals = &MergeRequestApprovalsService{client: c}
 	c.MergeRequests = &MergeRequestsService{client: c, timeStats: timeStats}
-	c.Metadata = &MetadataService{client: c}
 	c.Milestones = &MilestonesService{client: c}
 	c.Namespaces = &NamespacesService{client: c}
 	c.Notes = &NotesService{client: c}
@@ -383,7 +374,6 @@ func newClient(options ...ClientOptionFunc) (*Client, error) {
 	c.ProjectAccessTokens = &ProjectAccessTokensService{client: c}
 	c.ProjectBadges = &ProjectBadgesService{client: c}
 	c.ProjectCluster = &ProjectClustersService{client: c}
-	c.ProjectFeatureFlags = &ProjectFeatureFlagService{client: c}
 	c.ProjectImportExport = &ProjectImportExportService{client: c}
 	c.ProjectIterations = &ProjectIterationsService{client: c}
 	c.ProjectMembers = &ProjectMembersService{client: c}
@@ -403,7 +393,6 @@ func newClient(options ...ClientOptionFunc) (*Client, error) {
 	c.ResourceLabelEvents = &ResourceLabelEventsService{client: c}
 	c.ResourceMilestoneEvents = &ResourceMilestoneEventsService{client: c}
 	c.ResourceStateEvents = &ResourceStateEventsService{client: c}
-	c.ResourceWeightEvents = &ResourceWeightEventsService{client: c}
 	c.Runners = &RunnersService{client: c}
 	c.Search = &SearchService{client: c}
 	c.Services = &ServicesService{client: c}
@@ -598,7 +587,7 @@ func (c *Client) NewRequest(method, path string, opt interface{}, options []Requ
 		return nil, err
 	}
 
-	for _, fn := range append(c.defaultRequestOptions, options...) {
+	for _, fn := range options {
 		if fn == nil {
 			continue
 		}
@@ -674,7 +663,7 @@ func (c *Client) UploadRequest(method, path string, content io.Reader, filename 
 		return nil, err
 	}
 
-	for _, fn := range append(c.defaultRequestOptions, options...) {
+	for _, fn := range options {
 		if fn == nil {
 			continue
 		}
@@ -876,7 +865,7 @@ func PathEscape(s string) string {
 // An ErrorResponse reports one or more errors caused by an API request.
 //
 // GitLab API docs:
-// https://docs.gitlab.com/ee/api/index.html#data-validation-and-error-reporting
+// https://docs.gitlab.com/ce/api/README.html#data-validation-and-error-reporting
 type ErrorResponse struct {
 	Body     []byte
 	Response *http.Response
@@ -903,7 +892,7 @@ func CheckResponse(r *http.Response) error {
 
 		var raw interface{}
 		if err := json.Unmarshal(data, &raw); err != nil {
-			errorResponse.Message = fmt.Sprintf("failed to parse unknown error format: %s", data)
+			errorResponse.Message = "failed to parse unknown error format"
 		} else {
 			errorResponse.Message = parseError(raw)
 		}
@@ -913,24 +902,23 @@ func CheckResponse(r *http.Response) error {
 }
 
 // Format:
-//
-//	{
-//	    "message": {
-//	        "<property-name>": [
-//	            "<error-message>",
-//	            "<error-message>",
-//	            ...
-//	        ],
-//	        "<embed-entity>": {
-//	            "<property-name>": [
-//	                "<error-message>",
-//	                "<error-message>",
-//	                ...
-//	            ],
-//	        }
-//	    },
-//	    "error": "<error-message>"
-//	}
+// {
+//     "message": {
+//         "<property-name>": [
+//             "<error-message>",
+//             "<error-message>",
+//             ...
+//         ],
+//         "<embed-entity>": {
+//             "<property-name>": [
+//                 "<error-message>",
+//                 "<error-message>",
+//                 ...
+//             ],
+//         }
+//     },
+//     "error": "<error-message>"
+// }
 func parseError(raw interface{}) string {
 	switch raw := raw.(type) {
 	case string:

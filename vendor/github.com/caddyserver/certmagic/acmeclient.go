@@ -175,7 +175,9 @@ func (iss *ACMEIssuer) newACMEClient(useTestCA bool) (*acmez.Client, error) {
 		},
 		ChallengeSolvers: make(map[string]acmez.Solver),
 	}
-	client.Logger = iss.Logger.Named("acme_client")
+	if iss.Logger != nil {
+		client.Logger = iss.Logger.Named("acme_client")
+	}
 
 	// configure challenges (most of the time, DNS challenge is
 	// exclusive of other ones because it is usually only used
@@ -258,20 +260,24 @@ func (c *acmeClient) throttle(ctx context.Context, names []string) error {
 		// TODO: stop rate limiter when it is garbage-collected...
 	}
 	rateLimitersMu.Unlock()
-	c.iss.Logger.Info("waiting on internal rate limiter",
-		zap.Strings("identifiers", names),
-		zap.String("ca", c.acmeClient.Directory),
-		zap.String("account", email),
-	)
+	if c.iss.Logger != nil {
+		c.iss.Logger.Info("waiting on internal rate limiter",
+			zap.Strings("identifiers", names),
+			zap.String("ca", c.acmeClient.Directory),
+			zap.String("account", email),
+		)
+	}
 	err := rl.Wait(ctx)
 	if err != nil {
 		return err
 	}
-	c.iss.Logger.Info("done waiting on internal rate limiter",
-		zap.Strings("identifiers", names),
-		zap.String("ca", c.acmeClient.Directory),
-		zap.String("account", email),
-	)
+	if c.iss.Logger != nil {
+		c.iss.Logger.Info("done waiting on internal rate limiter",
+			zap.Strings("identifiers", names),
+			zap.String("ca", c.acmeClient.Directory),
+			zap.String("account", email),
+		)
+	}
 	return nil
 }
 

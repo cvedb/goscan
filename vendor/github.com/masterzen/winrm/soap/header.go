@@ -23,7 +23,7 @@ type SoapHeader struct {
 	locale          string
 	id              string
 	action          string
-	shellID         string
+	shellId         string
 	resourceURI     string
 	options         []HeaderOption
 	message         *SoapMessage
@@ -44,137 +44,135 @@ type HeaderBuilder interface {
 	Build(*SoapMessage) *SoapMessage
 }
 
-func (sh *SoapHeader) To(uri string) *SoapHeader {
-	sh.to = uri
-	return sh
+func (self *SoapHeader) To(uri string) *SoapHeader {
+	self.to = uri
+	return self
 }
 
-func (sh *SoapHeader) ReplyTo(uri string) *SoapHeader {
-	sh.replyTo = uri
-	return sh
+func (self *SoapHeader) ReplyTo(uri string) *SoapHeader {
+	self.replyTo = uri
+	return self
 }
 
-func (sh *SoapHeader) MaxEnvelopeSize(size int) *SoapHeader {
-	sh.maxEnvelopeSize = strconv.Itoa(size)
-	return sh
+func (self *SoapHeader) MaxEnvelopeSize(size int) *SoapHeader {
+	self.maxEnvelopeSize = strconv.Itoa(size)
+	return self
 }
 
-func (sh *SoapHeader) Timeout(timeout string) *SoapHeader {
-	sh.timeout = timeout
-	return sh
+func (self *SoapHeader) Timeout(timeout string) *SoapHeader {
+	self.timeout = timeout
+	return self
 }
 
-//nolint:stylecheck // Should be ShellID, but we stay compatible
-func (sh *SoapHeader) Id(id string) *SoapHeader {
-	sh.id = id
-	return sh
+func (self *SoapHeader) Id(id string) *SoapHeader {
+	self.id = id
+	return self
 }
 
-func (sh *SoapHeader) Action(action string) *SoapHeader {
-	sh.action = action
-	return sh
+func (self *SoapHeader) Action(action string) *SoapHeader {
+	self.action = action
+	return self
 }
 
-func (sh *SoapHeader) Locale(locale string) *SoapHeader {
-	sh.locale = locale
-	return sh
+func (self *SoapHeader) Locale(locale string) *SoapHeader {
+	self.locale = locale
+	return self
 }
 
-//nolint:stylecheck // Should be ShellID, but we stay compatible
-func (sh *SoapHeader) ShellId(shellId string) *SoapHeader {
-	sh.shellID = shellId
-	return sh
+func (self *SoapHeader) ShellId(shellId string) *SoapHeader {
+	self.shellId = shellId
+	return self
 }
 
-func (sh *SoapHeader) ResourceURI(resourceURI string) *SoapHeader {
-	sh.resourceURI = resourceURI
-	return sh
+func (self *SoapHeader) ResourceURI(resourceURI string) *SoapHeader {
+	self.resourceURI = resourceURI
+	return self
 }
 
-func (sh *SoapHeader) AddOption(option *HeaderOption) *SoapHeader {
-	sh.options = append(sh.options, *option)
-	return sh
+func (self *SoapHeader) AddOption(option *HeaderOption) *SoapHeader {
+	self.options = append(self.options, *option)
+	return self
 }
 
-func (sh *SoapHeader) Options(options []HeaderOption) *SoapHeader {
-	sh.options = options
-	return sh
+func (self *SoapHeader) Options(options []HeaderOption) *SoapHeader {
+	self.options = options
+	return self
 }
 
-func (sh *SoapHeader) Build() *SoapMessage {
-	header := sh.createElement(sh.message.envelope, "Header", DOM_NS_SOAP_ENV)
+func (self *SoapHeader) Build() *SoapMessage {
+	header := self.createElement(self.message.envelope, "Header", DOM_NS_SOAP_ENV)
 
-	if sh.to != "" {
-		to := sh.createElement(header, "To", DOM_NS_ADDRESSING)
-		to.SetContent(sh.to)
+	if self.to != "" {
+		to := self.createElement(header, "To", DOM_NS_ADDRESSING)
+		to.SetContent(self.to)
 	}
 
-	if sh.replyTo != "" {
-		replyTo := sh.createElement(header, "ReplyTo", DOM_NS_ADDRESSING)
-		a := sh.createMUElement(replyTo, "Address", DOM_NS_ADDRESSING, true)
-		a.SetContent(sh.replyTo)
+	if self.replyTo != "" {
+		replyTo := self.createElement(header, "ReplyTo", DOM_NS_ADDRESSING)
+		a := self.createMUElement(replyTo, "Address", DOM_NS_ADDRESSING, true)
+		a.SetContent(self.replyTo)
 	}
 
-	if sh.maxEnvelopeSize != "" {
-		envelope := sh.createMUElement(header, "MaxEnvelopeSize", DOM_NS_WSMAN_DMTF, true)
-		envelope.SetContent(sh.maxEnvelopeSize)
+	if self.maxEnvelopeSize != "" {
+		envelope := self.createMUElement(header, "MaxEnvelopeSize", DOM_NS_WSMAN_DMTF, true)
+		envelope.SetContent(self.maxEnvelopeSize)
 	}
 
-	if sh.timeout != "" {
-		timeout := sh.createElement(header, "OperationTimeout", DOM_NS_WSMAN_DMTF)
-		timeout.SetContent(sh.timeout)
+	if self.timeout != "" {
+		timeout := self.createElement(header, "OperationTimeout", DOM_NS_WSMAN_DMTF)
+		timeout.SetContent(self.timeout)
 	}
 
-	if sh.id != "" {
-		id := sh.createElement(header, "MessageID", DOM_NS_ADDRESSING)
-		id.SetContent(sh.id)
+	if self.id != "" {
+		id := self.createElement(header, "MessageID", DOM_NS_ADDRESSING)
+		id.SetContent(self.id)
 	}
 
-	if sh.locale != "" {
-		locale := sh.createMUElement(header, "Locale", DOM_NS_WSMAN_DMTF, false)
-		locale.SetAttr("xml:lang", sh.locale)
-		datalocale := sh.createMUElement(header, "DataLocale", DOM_NS_WSMAN_MSFT, false)
-		datalocale.SetAttr("xml:lang", sh.locale)
+	if self.locale != "" {
+		locale := self.createMUElement(header, "Locale", DOM_NS_WSMAN_DMTF, false)
+		locale.SetAttr("xml:lang", self.locale)
+		datalocale := self.createMUElement(header, "DataLocale", DOM_NS_WSMAN_MSFT, false)
+		datalocale.SetAttr("xml:lang", self.locale)
 	}
 
-	if sh.action != "" {
-		action := sh.createMUElement(header, "Action", DOM_NS_ADDRESSING, true)
-		action.SetContent(sh.action)
+	if self.action != "" {
+		action := self.createMUElement(header, "Action", DOM_NS_ADDRESSING, true)
+		action.SetContent(self.action)
 	}
 
-	if sh.shellID != "" {
-		selectorSet := sh.createElement(header, "SelectorSet", DOM_NS_WSMAN_DMTF)
-		selector := sh.createElement(selectorSet, "Selector", DOM_NS_WSMAN_DMTF)
+	if self.shellId != "" {
+		selectorSet := self.createElement(header, "SelectorSet", DOM_NS_WSMAN_DMTF)
+		selector := self.createElement(selectorSet, "Selector", DOM_NS_WSMAN_DMTF)
 		selector.SetAttr("Name", "ShellId")
-		selector.SetContent(sh.shellID)
+		selector.SetContent(self.shellId)
 	}
 
-	if sh.resourceURI != "" {
-		resource := sh.createMUElement(header, "ResourceURI", DOM_NS_WSMAN_DMTF, true)
-		resource.SetContent(sh.resourceURI)
+	if self.resourceURI != "" {
+		resource := self.createMUElement(header, "ResourceURI", DOM_NS_WSMAN_DMTF, true)
+		resource.SetContent(self.resourceURI)
 	}
 
-	if len(sh.options) > 0 {
-		set := sh.createElement(header, "OptionSet", DOM_NS_WSMAN_DMTF)
-		for _, option := range sh.options {
-			e := sh.createElement(set, "Option", DOM_NS_WSMAN_DMTF)
+	if len(self.options) > 0 {
+		set := self.createElement(header, "OptionSet", DOM_NS_WSMAN_DMTF)
+		for _, option := range self.options {
+			e := self.createElement(set, "Option", DOM_NS_WSMAN_DMTF)
 			e.SetAttr("Name", option.key)
 			e.SetContent(option.value)
 		}
 	}
 
-	return sh.message
+	return self.message
 }
 
-func (sh *SoapHeader) createElement(parent *dom.Element, name string, ns dom.Namespace) (element *dom.Element) {
+func (self *SoapHeader) createElement(parent *dom.Element, name string, ns dom.Namespace) (element *dom.Element) {
 	element = dom.CreateElement(name)
 	parent.AddChild(element)
 	ns.SetTo(element)
 	return
 }
 
-func (sh *SoapHeader) createMUElement(parent *dom.Element, name string, ns dom.Namespace, mustUnderstand bool) (element *dom.Element) {
-	element = sh.createElement(parent, name, ns)
+func (self *SoapHeader) createMUElement(parent *dom.Element, name string, ns dom.Namespace, mustUnderstand bool) (element *dom.Element) {
+	element = self.createElement(parent, name, ns)
 	value := "false"
 	if mustUnderstand {
 		value = "true"

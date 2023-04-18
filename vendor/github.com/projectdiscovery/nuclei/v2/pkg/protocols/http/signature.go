@@ -2,7 +2,6 @@ package http
 
 import (
 	"encoding/json"
-	"strings"
 
 	"github.com/alecthomas/jsonschema"
 	"github.com/pkg/errors"
@@ -78,21 +77,7 @@ func (holder *SignatureTypeHolder) UnmarshalYAML(unmarshal func(interface{}) err
 	return nil
 }
 
-func (holder *SignatureTypeHolder) UnmarshalJSON(data []byte) error {
-	s := strings.Trim(string(data), `"`)
-	if s == "" {
-		return nil
-	}
-	computedType, err := toSignatureType(s)
-	if err != nil {
-		return err
-	}
-
-	holder.Value = computedType
-	return nil
-}
-
-func (holder SignatureTypeHolder) MarshalJSON() ([]byte, error) {
+func (holder *SignatureTypeHolder) MarshalJSON() ([]byte, error) {
 	return json.Marshal(holder.Value.String())
 }
 
@@ -107,6 +92,16 @@ func GetVariablesNamesSkipList(signature SignatureType) map[string]interface{} {
 	switch signature {
 	case AWSSignature:
 		return signer.AwsSkipList
+	default:
+		return nil
+	}
+}
+
+// GetVariablesNamesSkipList depending on the signature type
+func GetVariablesDefault(signature SignatureType) map[string]interface{} {
+	switch signature {
+	case AWSSignature:
+		return signer.AwsDefaultVars
 	default:
 		return nil
 	}

@@ -8,7 +8,7 @@ import (
 	"github.com/projectdiscovery/nuclei/v2/pkg/operators/common/dsl"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/marker"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/replacer"
-	stringsutil "github.com/projectdiscovery/utils/strings"
+	"github.com/projectdiscovery/stringsutil"
 )
 
 // Evaluate checks if the match contains a dynamic variable, for each
@@ -56,6 +56,7 @@ func evaluate(data string, base map[string]interface{}) (string, error) {
 		// replace incrementally
 		data = replacer.ReplaceOne(data, expression, result)
 	}
+
 	return data, nil
 }
 

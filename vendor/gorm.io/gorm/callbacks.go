@@ -75,7 +75,11 @@ func (cs *callbacks) Raw() *processor {
 func (p *processor) Execute(db *DB) *DB {
 	// call scopes
 	for len(db.Statement.scopes) > 0 {
-		db = db.executeScopes()
+		scopes := db.Statement.scopes
+		db.Statement.scopes = nil
+		for _, scope := range scopes {
+			db = scope(db)
+		}
 	}
 
 	var (
@@ -87,10 +91,6 @@ func (p *processor) Execute(db *DB) *DB {
 	if len(stmt.BuildClauses) == 0 {
 		stmt.BuildClauses = p.Clauses
 		resetBuildClauses = true
-	}
-
-	if optimizer, ok := db.Statement.Dest.(StatementModifier); ok {
-		optimizer.ModifyStatement(stmt)
 	}
 
 	// assign model values
@@ -132,11 +132,7 @@ func (p *processor) Execute(db *DB) *DB {
 
 	if stmt.SQL.Len() > 0 {
 		db.Logger.Trace(stmt.Context, curTime, func() (string, int64) {
-			sql, vars := stmt.SQL.String(), stmt.Vars
-			if filter, ok := db.Logger.(ParamsFilter); ok {
-				sql, vars = filter.ParamsFilter(stmt.Context, stmt.SQL.String(), stmt.Vars...)
-			}
-			return db.Dialector.Explain(sql, vars...), db.RowsAffected
+			return db.Dialector.Explain(stmt.SQL.String(), stmt.Vars...), db.RowsAffected
 		}, db.Error)
 	}
 

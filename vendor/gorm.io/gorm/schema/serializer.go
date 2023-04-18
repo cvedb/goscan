@@ -70,7 +70,8 @@ type SerializerValuerInterface interface {
 }
 
 // JSONSerializer json serializer
-type JSONSerializer struct{}
+type JSONSerializer struct {
+}
 
 // Scan implements serializer interface
 func (JSONSerializer) Scan(ctx context.Context, field *Field, dst reflect.Value, dbValue interface{}) (err error) {
@@ -99,17 +100,12 @@ func (JSONSerializer) Scan(ctx context.Context, field *Field, dst reflect.Value,
 // Value implements serializer interface
 func (JSONSerializer) Value(ctx context.Context, field *Field, dst reflect.Value, fieldValue interface{}) (interface{}, error) {
 	result, err := json.Marshal(fieldValue)
-	if string(result) == "null" {
-		if field.TagSettings["NOT NULL"] != "" {
-			return "", nil
-		}
-		return nil, err
-	}
 	return string(result), err
 }
 
 // UnixSecondSerializer json serializer
-type UnixSecondSerializer struct{}
+type UnixSecondSerializer struct {
+}
 
 // Scan implements serializer interface
 func (UnixSecondSerializer) Scan(ctx context.Context, field *Field, dst reflect.Value, dbValue interface{}) (err error) {
@@ -139,7 +135,8 @@ func (UnixSecondSerializer) Value(ctx context.Context, field *Field, dst reflect
 }
 
 // GobSerializer gob serializer
-type GobSerializer struct{}
+type GobSerializer struct {
+}
 
 // Scan implements serializer interface
 func (GobSerializer) Scan(ctx context.Context, field *Field, dst reflect.Value, dbValue interface{}) (err error) {

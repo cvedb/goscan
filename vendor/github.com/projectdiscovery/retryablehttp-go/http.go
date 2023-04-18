@@ -37,7 +37,6 @@ func DefaultReusePooledTransport() *http.Transport {
 		TLSClientConfig: &tls.Config{
 			Renegotiation:      tls.RenegotiateOnceAsClient,
 			InsecureSkipVerify: true,
-			MinVersion:         tls.VersionTLS10,
 		},
 	}
 	return transport

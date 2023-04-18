@@ -33,7 +33,6 @@ const (
 	EventTypeDeployment    EventType = "Deployment Hook"
 	EventTypeIssue         EventType = "Issue Hook"
 	EventTypeJob           EventType = "Job Hook"
-	EventTypeMember        EventType = "Member Hook"
 	EventTypeMergeRequest  EventType = "Merge Request Hook"
 	EventTypeNote          EventType = "Note Hook"
 	EventTypePipeline      EventType = "Pipeline Hook"
@@ -81,19 +80,20 @@ func HookEventType(r *http.Request) EventType {
 //
 // Example usage:
 //
-//	func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-//	    payload, err := ioutil.ReadAll(r.Body)
-//	    if err != nil { ... }
-//	    event, err := gitlab.ParseHook(gitlab.HookEventType(r), payload)
-//	    if err != nil { ... }
-//	    switch event := event.(type) {
-//	    case *gitlab.PushEvent:
-//	        processPushEvent(event)
-//	    case *gitlab.MergeEvent:
-//	        processMergeEvent(event)
-//	    ...
-//	    }
-//	}
+// func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+//     payload, err := ioutil.ReadAll(r.Body)
+//     if err != nil { ... }
+//     event, err := gitlab.ParseHook(gitlab.HookEventType(r), payload)
+//     if err != nil { ... }
+//     switch event := event.(type) {
+//     case *gitlab.PushEvent:
+//         processPushEvent(event)
+//     case *gitlab.MergeEvent:
+//         processMergeEvent(event)
+//     ...
+//     }
+// }
+//
 func ParseHook(eventType EventType, payload []byte) (event interface{}, err error) {
 	switch eventType {
 	case EventTypeSystemHook:
@@ -109,19 +109,20 @@ func ParseHook(eventType EventType, payload []byte) (event interface{}, err erro
 //
 // Example usage:
 //
-//	func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-//	    payload, err := ioutil.ReadAll(r.Body)
-//	    if err != nil { ... }
-//	    event, err := gitlab.ParseSystemhook(payload)
-//	    if err != nil { ... }
-//	    switch event := event.(type) {
-//	    case *gitlab.PushSystemEvent:
-//	        processPushSystemEvent(event)
-//	    case *gitlab.MergeSystemEvent:
-//	        processMergeSystemEvent(event)
-//	    ...
-//	    }
-//	}
+// func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+//     payload, err := ioutil.ReadAll(r.Body)
+//     if err != nil { ... }
+//     event, err := gitlab.ParseSystemhook(payload)
+//     if err != nil { ... }
+//     switch event := event.(type) {
+//     case *gitlab.PushSystemEvent:
+//         processPushSystemEvent(event)
+//     case *gitlab.MergeSystemEvent:
+//         processMergeSystemEvent(event)
+//     ...
+//     }
+// }
+//
 func ParseSystemhook(payload []byte) (event interface{}, err error) {
 	e := &systemHookEvent{}
 	err = json.Unmarshal(payload, e)
@@ -148,13 +149,14 @@ func ParseSystemhook(payload []byte) (event interface{}, err error) {
 		"group_destroy",
 		"group_rename":
 		event = &GroupSystemEvent{}
-	case "key_create", "key_destroy":
+	case
+		"key_create",
+		"key_destroy":
 		event = &KeySystemEvent{}
 	case
 		"user_create",
 		"user_destroy",
-		"user_rename",
-		"user_failed_login":
+		"user_rename":
 		event = &UserSystemEvent{}
 	case
 		"user_add_to_group",
@@ -193,19 +195,20 @@ func WebhookEventType(r *http.Request) EventType {
 //
 // Example usage:
 //
-//	func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-//	    payload, err := ioutil.ReadAll(r.Body)
-//	    if err != nil { ... }
-//	    event, err := gitlab.ParseWebhook(gitlab.HookEventType(r), payload)
-//	    if err != nil { ... }
-//	    switch event := event.(type) {
-//	    case *gitlab.PushEvent:
-//	        processPushEvent(event)
-//	    case *gitlab.MergeEvent:
-//	        processMergeEvent(event)
-//	    ...
-//	    }
-//	}
+// func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+//     payload, err := ioutil.ReadAll(r.Body)
+//     if err != nil { ... }
+//     event, err := gitlab.ParseWebhook(gitlab.HookEventType(r), payload)
+//     if err != nil { ... }
+//     switch event := event.(type) {
+//     case *gitlab.PushEvent:
+//         processPushEvent(event)
+//     case *gitlab.MergeEvent:
+//         processMergeEvent(event)
+//     ...
+//     }
+// }
+//
 func ParseWebhook(eventType EventType, payload []byte) (event interface{}, err error) {
 	switch eventType {
 	case EventTypeBuild:
@@ -216,8 +219,6 @@ func ParseWebhook(eventType EventType, payload []byte) (event interface{}, err e
 		event = &IssueEvent{}
 	case EventTypeJob:
 		event = &JobEvent{}
-	case EventTypeMember:
-		event = &MemberEvent{}
 	case EventTypeMergeRequest:
 		event = &MergeEvent{}
 	case EventTypeNote, EventConfidentialNote:

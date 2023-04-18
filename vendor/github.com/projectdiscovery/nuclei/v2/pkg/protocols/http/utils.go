@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httputil"
@@ -15,7 +16,7 @@ import (
 
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/generators"
 	"github.com/projectdiscovery/rawhttp"
-	stringsutil "github.com/projectdiscovery/utils/strings"
+	"github.com/projectdiscovery/stringsutil"
 )
 
 type redirectedResponse struct {
@@ -114,7 +115,26 @@ func normalizeResponseBody(resp *http.Response, response *redirectedResponse) er
 // dump creates a dump of the http request in form of a byte slice
 func dump(req *generatedRequest, reqURL string) ([]byte, error) {
 	if req.request != nil {
-		return req.request.Dump()
+		cloned := req.request.Clone(context.Background())
+
+		// Create a copy on the fly of the request body - ignore errors
+		bodyBytes, _ := req.request.BodyBytes()
+		var dumpBody bool
+		if len(bodyBytes) > 0 {
+			dumpBody = true
+			cloned.ContentLength = int64(len(bodyBytes))
+			cloned.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		} else {
+			cloned.ContentLength = 0
+			cloned.Body = nil
+			delete(cloned.Header, "Content-length")
+		}
+
+		dumpBytes, err := httputil.DumpRequestOut(cloned, dumpBody)
+		if err != nil {
+			return nil, err
+		}
+		return dumpBytes, nil
 	}
 	rawHttpOptions := &rawhttp.Options{CustomHeaders: req.rawRequest.UnsafeHeaders, CustomRawBytes: req.rawRequest.UnsafeRawBytes}
 	return rawhttp.DumpRequestRaw(req.rawRequest.Method, reqURL, req.rawRequest.Path, generators.ExpandMapValues(req.rawRequest.Headers), io.NopCloser(strings.NewReader(req.rawRequest.Data)), rawHttpOptions)

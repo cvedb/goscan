@@ -8,9 +8,6 @@ package options
 
 import (
 	"crypto/tls"
-	"net/http"
-
-	"go.mongodb.org/mongo-driver/internal"
 )
 
 // AutoEncryptionOptions represents options used to configure auto encryption/decryption behavior for a mongo.Client
@@ -35,16 +32,13 @@ type AutoEncryptionOptions struct {
 	BypassAutoEncryption  *bool
 	ExtraOptions          map[string]interface{}
 	TLSConfig             map[string]*tls.Config
-	HTTPClient            *http.Client
 	EncryptedFieldsMap    map[string]interface{}
 	BypassQueryAnalysis   *bool
 }
 
 // AutoEncryption creates a new AutoEncryptionOptions configured with default values.
 func AutoEncryption() *AutoEncryptionOptions {
-	return &AutoEncryptionOptions{
-		HTTPClient: internal.DefaultHTTPClient,
-	}
+	return &AutoEncryptionOptions{}
 }
 
 // SetKeyVaultClientOptions specifies options for the client used to communicate with the key vault collection.
@@ -100,7 +94,7 @@ func (a *AutoEncryptionOptions) SetBypassAutoEncryption(bypass bool) *AutoEncryp
 
 // SetExtraOptions specifies a map of options to configure the mongocryptd process or mongo_crypt shared library.
 //
-// # Supported Extra Options
+// Supported Extra Options
 //
 // "mongocryptdURI" - The mongocryptd URI. Allows setting a custom URI used to communicate with the
 // mongocryptd process. The default is "mongodb://localhost:27020", which works with the default
@@ -199,9 +193,6 @@ func MergeAutoEncryptionOptions(opts ...*AutoEncryptionOptions) *AutoEncryptionO
 		}
 		if opt.BypassQueryAnalysis != nil {
 			aeo.BypassQueryAnalysis = opt.BypassQueryAnalysis
-		}
-		if opt.HTTPClient != nil {
-			aeo.HTTPClient = opt.HTTPClient
 		}
 	}
 
