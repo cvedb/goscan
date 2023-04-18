@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/projectdiscovery/gologger/formatter"
 	"github.com/projectdiscovery/gologger/levels"
@@ -32,14 +33,16 @@ func init() {
 
 // Logger is a logger for logging structured data in a beautfiul and fast manner.
 type Logger struct {
-	writer    writer.Writer
-	maxLevel  levels.Level
-	formatter formatter.Formatter
+	writer            writer.Writer
+	maxLevel          levels.Level
+	formatter         formatter.Formatter
+	timestampMinLevel levels.Level
+	timestamp         bool
 }
 
 // Log logs a message to a logger instance
 func (l *Logger) Log(event *Event) {
-	if event.level > l.maxLevel {
+	if !isCurrentLevelEnabled(event) {
 		return
 	}
 	event.message = strings.TrimSuffix(event.message, "\n")
@@ -73,6 +76,12 @@ func (l *Logger) SetWriter(writer writer.Writer) {
 	l.writer = writer
 }
 
+// SetTimestamp enables/disables automatic timestamp
+func (l *Logger) SetTimestamp(timestamp bool, minLevel levels.Level) {
+	l.timestamp = timestamp
+	l.timestampMinLevel = minLevel
+}
+
 // Event is a log event to be written with data
 type Event struct {
 	logger   *Logger
@@ -81,9 +90,35 @@ type Event struct {
 	metadata map[string]string
 }
 
+func newDefaultEventWithLevel(level levels.Level) *Event {
+	return newEventWithLevelAndLogger(level, DefaultLogger)
+}
+
+func newEventWithLevelAndLogger(level levels.Level, l *Logger) *Event {
+	event := &Event{
+		logger:   l,
+		level:    level,
+		metadata: make(map[string]string),
+	}
+	if l.timestamp && level >= l.timestampMinLevel {
+		event.TimeStamp()
+	}
+	return event
+}
+
+func (e *Event) setLevelMetadata(level levels.Level) {
+	e.metadata["label"] = labels[level]
+}
+
 // Label applies a custom label on the log event
 func (e *Event) Label(label string) *Event {
 	e.metadata["label"] = label
+	return e
+}
+
+// TimeStamp adds timestamp to the log event
+func (e *Event) TimeStamp() *Event {
+	e.metadata["timestamp"] = time.Now().Format(time.RFC3339)
 	return e
 }
 
@@ -94,8 +129,8 @@ func (e *Event) Str(key, value string) *Event {
 }
 
 // Msg logs a message to the logger
-func (e *Event) Msg(format string) {
-	e.message = format
+func (e *Event) Msg(message string) {
+	e.message = message
 	e.logger.Log(e)
 }
 
@@ -105,179 +140,118 @@ func (e *Event) Msgf(format string, args ...interface{}) {
 	e.logger.Log(e)
 }
 
+// MsgFunc logs a message with lazy evaluation.
+// Useful when computing the message can be resource heavy.
+func (e *Event) MsgFunc(messageSupplier func() string) {
+	if !isCurrentLevelEnabled(e) {
+		return
+	}
+	e.message = messageSupplier()
+	e.logger.Log(e)
+}
+
 // Info writes a info message on the screen with the default label
 func Info() *Event {
-	level := levels.LevelInfo
-	event := &Event{
-		logger:   DefaultLogger,
-		level:    level,
-		metadata: make(map[string]string),
-	}
-	event.metadata["label"] = labels[level]
+	event := newDefaultEventWithLevel(levels.LevelInfo)
+	event.setLevelMetadata(levels.LevelInfo)
 	return event
 }
 
 // Warning writes a warning message on the screen with the default label
 func Warning() *Event {
-	level := levels.LevelWarning
-	event := &Event{
-		logger:   DefaultLogger,
-		level:    level,
-		metadata: make(map[string]string),
-	}
-	event.metadata["label"] = labels[level]
+	event := newDefaultEventWithLevel(levels.LevelWarning)
+	event.setLevelMetadata(levels.LevelWarning)
 	return event
 }
 
 // Error writes a error message on the screen with the default label
 func Error() *Event {
-	level := levels.LevelError
-	event := &Event{
-		logger:   DefaultLogger,
-		level:    level,
-		metadata: make(map[string]string),
-	}
-	event.metadata["label"] = labels[level]
+	event := newDefaultEventWithLevel(levels.LevelError)
+	event.setLevelMetadata(levels.LevelError)
 	return event
 }
 
 // Debug writes an error message on the screen with the default label
 func Debug() *Event {
-	level := levels.LevelDebug
-	event := &Event{
-		logger:   DefaultLogger,
-		level:    level,
-		metadata: make(map[string]string),
-	}
-	event.metadata["label"] = labels[level]
+	event := newDefaultEventWithLevel(levels.LevelDebug)
+	event.setLevelMetadata(levels.LevelDebug)
 	return event
 }
 
 // Fatal exits the program if we encounter a fatal error
 func Fatal() *Event {
-	level := levels.LevelFatal
-	event := &Event{
-		logger:   DefaultLogger,
-		level:    level,
-		metadata: make(map[string]string),
-	}
-	event.metadata["label"] = labels[level]
+	event := newDefaultEventWithLevel(levels.LevelFatal)
+	event.setLevelMetadata(levels.LevelFatal)
 	return event
 }
 
 // Silent prints a string on stdout without any extra labels.
 func Silent() *Event {
-	level := levels.LevelSilent
-	event := &Event{
-		logger:   DefaultLogger,
-		level:    level,
-		metadata: make(map[string]string),
-	}
+	event := newDefaultEventWithLevel(levels.LevelSilent)
 	return event
 }
 
 // Print prints a string on stderr without any extra labels.
 func Print() *Event {
-	level := levels.LevelInfo
-	event := &Event{
-		logger:   DefaultLogger,
-		level:    level,
-		metadata: make(map[string]string),
-	}
+	event := newDefaultEventWithLevel(levels.LevelInfo)
 	return event
 }
 
 // Verbose prints a string only in verbose output mode.
 func Verbose() *Event {
-	level := levels.LevelVerbose
-	event := &Event{
-		logger:   DefaultLogger,
-		level:    level,
-		metadata: make(map[string]string),
-	}
-	event.metadata["label"] = labels[level]
+	event := newDefaultEventWithLevel(levels.LevelVerbose)
+	event.setLevelMetadata(levels.LevelVerbose)
 	return event
 }
 
 // Info writes a info message on the screen with the default label
 func (l *Logger) Info() *Event {
-	level := levels.LevelInfo
-	event := &Event{
-		logger:   l,
-		level:    level,
-		metadata: make(map[string]string),
-	}
-	event.metadata["label"] = labels[level]
+	event := newEventWithLevelAndLogger(levels.LevelInfo, l)
+	event.setLevelMetadata(levels.LevelInfo)
 	return event
 }
 
 // Warning writes a warning message on the screen with the default label
 func (l *Logger) Warning() *Event {
-	level := levels.LevelWarning
-	event := &Event{
-		logger:   l,
-		level:    level,
-		metadata: make(map[string]string),
-	}
-	event.metadata["label"] = labels[level]
+	event := newEventWithLevelAndLogger(levels.LevelWarning, l)
+	event.setLevelMetadata(levels.LevelWarning)
 	return event
 }
 
 // Error writes a error message on the screen with the default label
 func (l *Logger) Error() *Event {
-	level := levels.LevelError
-	event := &Event{
-		logger:   l,
-		level:    level,
-		metadata: make(map[string]string),
-	}
-	event.metadata["label"] = labels[level]
+	event := newEventWithLevelAndLogger(levels.LevelError, l)
+	event.setLevelMetadata(levels.LevelError)
 	return event
 }
 
 // Debug writes an error message on the screen with the default label
 func (l *Logger) Debug() *Event {
-	level := levels.LevelDebug
-	event := &Event{
-		logger:   l,
-		level:    level,
-		metadata: make(map[string]string),
-	}
-	event.metadata["label"] = labels[level]
+	event := newEventWithLevelAndLogger(levels.LevelDebug, l)
+	event.setLevelMetadata(levels.LevelDebug)
 	return event
 }
 
 // Fatal exits the program if we encounter a fatal error
 func (l *Logger) Fatal() *Event {
-	level := levels.LevelFatal
-	event := &Event{
-		logger:   l,
-		level:    level,
-		metadata: make(map[string]string),
-	}
-	event.metadata["label"] = labels[level]
+	event := newEventWithLevelAndLogger(levels.LevelFatal, l)
+	event.setLevelMetadata(levels.LevelFatal)
 	return event
 }
 
 // Print prints a string on screen without any extra labels.
 func (l *Logger) Print() *Event {
-	level := levels.LevelSilent
-	event := &Event{
-		logger:   l,
-		level:    level,
-		metadata: make(map[string]string),
-	}
+	event := newEventWithLevelAndLogger(levels.LevelSilent, l)
 	return event
 }
 
 // Verbose prints a string only in verbose output mode.
 func (l *Logger) Verbose() *Event {
-	level := levels.LevelVerbose
-	event := &Event{
-		logger:   l,
-		level:    level,
-		metadata: make(map[string]string),
-	}
-	event.metadata["label"] = labels[level]
+	event := newEventWithLevelAndLogger(levels.LevelVerbose, l)
+	event.setLevelMetadata(levels.LevelVerbose)
 	return event
+}
+
+func isCurrentLevelEnabled(e *Event) bool {
+	return e.level <= e.logger.maxLevel
 }

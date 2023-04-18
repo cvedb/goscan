@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -172,7 +173,7 @@ func dialSendTCP(kdcs map[int]string, b []byte) ([]byte, error) {
 		}
 		return rb, nil
 	}
-	return nil, fmt.Errorf("error sending to a KDC: %s", strings.Join(errs, "; "))
+	return nil, errors.New("error in getting a TCP connection to any of the KDCs")
 }
 
 // sendTCP sends bytes to connection over TCP.

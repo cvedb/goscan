@@ -147,10 +147,13 @@ const (
 	PagePermissionsPolicyFeatureChDownlink PagePermissionsPolicyFeature = "ch-downlink"
 
 	// PagePermissionsPolicyFeatureChEct enum const
-	PagePermissionsPolicyFeatureChEct PagePermissionsPolicyFeature = "ch-etc"
+	PagePermissionsPolicyFeatureChEct PagePermissionsPolicyFeature = "ch-ect"
 
 	// PagePermissionsPolicyFeatureChPrefersColorScheme enum const
 	PagePermissionsPolicyFeatureChPrefersColorScheme PagePermissionsPolicyFeature = "ch-prefers-color-scheme"
+
+	// PagePermissionsPolicyFeatureChPrefersReducedMotion enum const
+	PagePermissionsPolicyFeatureChPrefersReducedMotion PagePermissionsPolicyFeature = "ch-prefers-reduced-motion"
 
 	// PagePermissionsPolicyFeatureChRtt enum const
 	PagePermissionsPolicyFeatureChRtt PagePermissionsPolicyFeature = "ch-rtt"
@@ -209,6 +212,9 @@ const (
 	// PagePermissionsPolicyFeatureClipboardWrite enum const
 	PagePermissionsPolicyFeatureClipboardWrite PagePermissionsPolicyFeature = "clipboard-write"
 
+	// PagePermissionsPolicyFeatureComputePressure enum const
+	PagePermissionsPolicyFeatureComputePressure PagePermissionsPolicyFeature = "compute-pressure"
+
 	// PagePermissionsPolicyFeatureCrossOriginIsolated enum const
 	PagePermissionsPolicyFeatureCrossOriginIsolated PagePermissionsPolicyFeature = "cross-origin-isolated"
 
@@ -230,9 +236,6 @@ const (
 	// PagePermissionsPolicyFeatureExecutionWhileNotRendered enum const
 	PagePermissionsPolicyFeatureExecutionWhileNotRendered PagePermissionsPolicyFeature = "execution-while-not-rendered"
 
-	// PagePermissionsPolicyFeatureFederatedCredentials enum const
-	PagePermissionsPolicyFeatureFederatedCredentials PagePermissionsPolicyFeature = "federated-credentials"
-
 	// PagePermissionsPolicyFeatureFocusWithoutUserActivation enum const
 	PagePermissionsPolicyFeatureFocusWithoutUserActivation PagePermissionsPolicyFeature = "focus-without-user-activation"
 
@@ -253,6 +256,9 @@ const (
 
 	// PagePermissionsPolicyFeatureHid enum const
 	PagePermissionsPolicyFeatureHid PagePermissionsPolicyFeature = "hid"
+
+	// PagePermissionsPolicyFeatureIdentityCredentialsGet enum const
+	PagePermissionsPolicyFeatureIdentityCredentialsGet PagePermissionsPolicyFeature = "identity-credentials-get"
 
 	// PagePermissionsPolicyFeatureIdleDetection enum const
 	PagePermissionsPolicyFeatureIdleDetection PagePermissionsPolicyFeature = "idle-detection"
@@ -287,6 +293,9 @@ const (
 	// PagePermissionsPolicyFeaturePictureInPicture enum const
 	PagePermissionsPolicyFeaturePictureInPicture PagePermissionsPolicyFeature = "picture-in-picture"
 
+	// PagePermissionsPolicyFeaturePrivateAggregation enum const
+	PagePermissionsPolicyFeaturePrivateAggregation PagePermissionsPolicyFeature = "private-aggregation"
+
 	// PagePermissionsPolicyFeaturePublickeyCredentialsGet enum const
 	PagePermissionsPolicyFeaturePublickeyCredentialsGet PagePermissionsPolicyFeature = "publickey-credentials-get"
 
@@ -305,8 +314,14 @@ const (
 	// PagePermissionsPolicyFeatureSharedStorage enum const
 	PagePermissionsPolicyFeatureSharedStorage PagePermissionsPolicyFeature = "shared-storage"
 
-	// PagePermissionsPolicyFeatureStorageAccessAPI enum const
-	PagePermissionsPolicyFeatureStorageAccessAPI PagePermissionsPolicyFeature = "storage-access-api"
+	// PagePermissionsPolicyFeatureSharedStorageSelectURL enum const
+	PagePermissionsPolicyFeatureSharedStorageSelectURL PagePermissionsPolicyFeature = "shared-storage-select-url"
+
+	// PagePermissionsPolicyFeatureSmartCard enum const
+	PagePermissionsPolicyFeatureSmartCard PagePermissionsPolicyFeature = "smart-card"
+
+	// PagePermissionsPolicyFeatureStorageAccess enum const
+	PagePermissionsPolicyFeatureStorageAccess PagePermissionsPolicyFeature = "storage-access"
 
 	// PagePermissionsPolicyFeatureSyncXhr enum const
 	PagePermissionsPolicyFeatureSyncXhr PagePermissionsPolicyFeature = "sync-xhr"
@@ -325,6 +340,9 @@ const (
 
 	// PagePermissionsPolicyFeatureWebShare enum const
 	PagePermissionsPolicyFeatureWebShare PagePermissionsPolicyFeature = "web-share"
+
+	// PagePermissionsPolicyFeatureWindowManagement enum const
+	PagePermissionsPolicyFeatureWindowManagement PagePermissionsPolicyFeature = "window-management"
 
 	// PagePermissionsPolicyFeatureWindowPlacement enum const
 	PagePermissionsPolicyFeatureWindowPlacement PagePermissionsPolicyFeature = "window-placement"
@@ -1144,9 +1162,6 @@ const (
 	// PageBackForwardCacheNotRestoredReasonOutstandingIndexedDBTransaction enum const
 	PageBackForwardCacheNotRestoredReasonOutstandingIndexedDBTransaction PageBackForwardCacheNotRestoredReason = "OutstandingIndexedDBTransaction"
 
-	// PageBackForwardCacheNotRestoredReasonRequestedNotificationsPermission enum const
-	PageBackForwardCacheNotRestoredReasonRequestedNotificationsPermission PageBackForwardCacheNotRestoredReason = "RequestedNotificationsPermission"
-
 	// PageBackForwardCacheNotRestoredReasonRequestedMIDIPermission enum const
 	PageBackForwardCacheNotRestoredReasonRequestedMIDIPermission PageBackForwardCacheNotRestoredReason = "RequestedMIDIPermission"
 
@@ -1237,8 +1252,17 @@ const (
 	// PageBackForwardCacheNotRestoredReasonInjectedStyleSheet enum const
 	PageBackForwardCacheNotRestoredReasonInjectedStyleSheet PageBackForwardCacheNotRestoredReason = "InjectedStyleSheet"
 
+	// PageBackForwardCacheNotRestoredReasonKeepaliveRequest enum const
+	PageBackForwardCacheNotRestoredReasonKeepaliveRequest PageBackForwardCacheNotRestoredReason = "KeepaliveRequest"
+
+	// PageBackForwardCacheNotRestoredReasonIndexedDBEvent enum const
+	PageBackForwardCacheNotRestoredReasonIndexedDBEvent PageBackForwardCacheNotRestoredReason = "IndexedDBEvent"
+
 	// PageBackForwardCacheNotRestoredReasonDummy enum const
 	PageBackForwardCacheNotRestoredReasonDummy PageBackForwardCacheNotRestoredReason = "Dummy"
+
+	// PageBackForwardCacheNotRestoredReasonAuthorizationHeader enum const
+	PageBackForwardCacheNotRestoredReasonAuthorizationHeader PageBackForwardCacheNotRestoredReason = "AuthorizationHeader"
 
 	// PageBackForwardCacheNotRestoredReasonContentSecurityHandler enum const
 	PageBackForwardCacheNotRestoredReasonContentSecurityHandler PageBackForwardCacheNotRestoredReason = "ContentSecurityHandler"
@@ -1371,12 +1395,6 @@ const (
 	// PagePrerenderFinalStatusLowEndDevice enum const
 	PagePrerenderFinalStatusLowEndDevice PagePrerenderFinalStatus = "LowEndDevice"
 
-	// PagePrerenderFinalStatusCrossOriginRedirect enum const
-	PagePrerenderFinalStatusCrossOriginRedirect PagePrerenderFinalStatus = "CrossOriginRedirect"
-
-	// PagePrerenderFinalStatusCrossOriginNavigation enum const
-	PagePrerenderFinalStatusCrossOriginNavigation PagePrerenderFinalStatus = "CrossOriginNavigation"
-
 	// PagePrerenderFinalStatusInvalidSchemeRedirect enum const
 	PagePrerenderFinalStatusInvalidSchemeRedirect PagePrerenderFinalStatus = "InvalidSchemeRedirect"
 
@@ -1452,20 +1470,77 @@ const (
 	// PagePrerenderFinalStatusTriggerBackgrounded enum const
 	PagePrerenderFinalStatusTriggerBackgrounded PagePrerenderFinalStatus = "TriggerBackgrounded"
 
-	// PagePrerenderFinalStatusEmbedderTriggeredAndSameOriginRedirected enum const
-	PagePrerenderFinalStatusEmbedderTriggeredAndSameOriginRedirected PagePrerenderFinalStatus = "EmbedderTriggeredAndSameOriginRedirected"
-
 	// PagePrerenderFinalStatusEmbedderTriggeredAndCrossOriginRedirected enum const
 	PagePrerenderFinalStatusEmbedderTriggeredAndCrossOriginRedirected PagePrerenderFinalStatus = "EmbedderTriggeredAndCrossOriginRedirected"
-
-	// PagePrerenderFinalStatusEmbedderTriggeredAndDestroyed enum const
-	PagePrerenderFinalStatusEmbedderTriggeredAndDestroyed PagePrerenderFinalStatus = "EmbedderTriggeredAndDestroyed"
 
 	// PagePrerenderFinalStatusMemoryLimitExceeded enum const
 	PagePrerenderFinalStatusMemoryLimitExceeded PagePrerenderFinalStatus = "MemoryLimitExceeded"
 
 	// PagePrerenderFinalStatusFailToGetMemoryUsage enum const
 	PagePrerenderFinalStatusFailToGetMemoryUsage PagePrerenderFinalStatus = "FailToGetMemoryUsage"
+
+	// PagePrerenderFinalStatusDataSaverEnabled enum const
+	PagePrerenderFinalStatusDataSaverEnabled PagePrerenderFinalStatus = "DataSaverEnabled"
+
+	// PagePrerenderFinalStatusHasEffectiveURL enum const
+	PagePrerenderFinalStatusHasEffectiveURL PagePrerenderFinalStatus = "HasEffectiveUrl"
+
+	// PagePrerenderFinalStatusActivatedBeforeStarted enum const
+	PagePrerenderFinalStatusActivatedBeforeStarted PagePrerenderFinalStatus = "ActivatedBeforeStarted"
+
+	// PagePrerenderFinalStatusInactivePageRestriction enum const
+	PagePrerenderFinalStatusInactivePageRestriction PagePrerenderFinalStatus = "InactivePageRestriction"
+
+	// PagePrerenderFinalStatusStartFailed enum const
+	PagePrerenderFinalStatusStartFailed PagePrerenderFinalStatus = "StartFailed"
+
+	// PagePrerenderFinalStatusTimeoutBackgrounded enum const
+	PagePrerenderFinalStatusTimeoutBackgrounded PagePrerenderFinalStatus = "TimeoutBackgrounded"
+
+	// PagePrerenderFinalStatusCrossSiteRedirect enum const
+	PagePrerenderFinalStatusCrossSiteRedirect PagePrerenderFinalStatus = "CrossSiteRedirect"
+
+	// PagePrerenderFinalStatusCrossSiteNavigation enum const
+	PagePrerenderFinalStatusCrossSiteNavigation PagePrerenderFinalStatus = "CrossSiteNavigation"
+
+	// PagePrerenderFinalStatusSameSiteCrossOriginRedirect enum const
+	PagePrerenderFinalStatusSameSiteCrossOriginRedirect PagePrerenderFinalStatus = "SameSiteCrossOriginRedirect"
+
+	// PagePrerenderFinalStatusSameSiteCrossOriginNavigation enum const
+	PagePrerenderFinalStatusSameSiteCrossOriginNavigation PagePrerenderFinalStatus = "SameSiteCrossOriginNavigation"
+
+	// PagePrerenderFinalStatusSameSiteCrossOriginRedirectNotOptIn enum const
+	PagePrerenderFinalStatusSameSiteCrossOriginRedirectNotOptIn PagePrerenderFinalStatus = "SameSiteCrossOriginRedirectNotOptIn"
+
+	// PagePrerenderFinalStatusSameSiteCrossOriginNavigationNotOptIn enum const
+	PagePrerenderFinalStatusSameSiteCrossOriginNavigationNotOptIn PagePrerenderFinalStatus = "SameSiteCrossOriginNavigationNotOptIn"
+
+	// PagePrerenderFinalStatusActivationNavigationParameterMismatch enum const
+	PagePrerenderFinalStatusActivationNavigationParameterMismatch PagePrerenderFinalStatus = "ActivationNavigationParameterMismatch"
+
+	// PagePrerenderFinalStatusActivatedInBackground enum const
+	PagePrerenderFinalStatusActivatedInBackground PagePrerenderFinalStatus = "ActivatedInBackground"
+
+	// PagePrerenderFinalStatusEmbedderHostDisallowed enum const
+	PagePrerenderFinalStatusEmbedderHostDisallowed PagePrerenderFinalStatus = "EmbedderHostDisallowed"
+
+	// PagePrerenderFinalStatusActivationNavigationDestroyedBeforeSuccess enum const
+	PagePrerenderFinalStatusActivationNavigationDestroyedBeforeSuccess PagePrerenderFinalStatus = "ActivationNavigationDestroyedBeforeSuccess"
+
+	// PagePrerenderFinalStatusTabClosedByUserGesture enum const
+	PagePrerenderFinalStatusTabClosedByUserGesture PagePrerenderFinalStatus = "TabClosedByUserGesture"
+
+	// PagePrerenderFinalStatusTabClosedWithoutUserGesture enum const
+	PagePrerenderFinalStatusTabClosedWithoutUserGesture PagePrerenderFinalStatus = "TabClosedWithoutUserGesture"
+
+	// PagePrerenderFinalStatusPrimaryMainFrameRendererProcessCrashed enum const
+	PagePrerenderFinalStatusPrimaryMainFrameRendererProcessCrashed PagePrerenderFinalStatus = "PrimaryMainFrameRendererProcessCrashed"
+
+	// PagePrerenderFinalStatusPrimaryMainFrameRendererProcessKilled enum const
+	PagePrerenderFinalStatusPrimaryMainFrameRendererProcessKilled PagePrerenderFinalStatus = "PrimaryMainFrameRendererProcessKilled"
+
+	// PagePrerenderFinalStatusActivationFramePolicyNotCompatible enum const
+	PagePrerenderFinalStatusActivationFramePolicyNotCompatible PagePrerenderFinalStatus = "ActivationFramePolicyNotCompatible"
 )
 
 // PageAddScriptToEvaluateOnLoad (deprecated) (experimental) Deprecated, please use addScriptToEvaluateOnNewDocument instead.
@@ -1568,6 +1643,9 @@ type PageCaptureScreenshot struct {
 
 	// CaptureBeyondViewport (experimental) (optional) Capture the screenshot beyond the viewport. Defaults to false.
 	CaptureBeyondViewport bool `json:"captureBeyondViewport,omitempty"`
+
+	// OptimizeForSpeed (experimental) (optional) Optimize image encoding for speed, not for resulting size (defaults to false)
+	OptimizeForSpeed bool `json:"optimizeForSpeed,omitempty"`
 }
 
 // ProtoReq name
@@ -1821,8 +1899,33 @@ type PageGetAppIDResult struct {
 	RecommendedID string `json:"recommendedId,omitempty"`
 }
 
-// PageGetCookies (deprecated) (experimental) Returns all browser cookies. Depending on the backend support, will return detailed cookie
-// information in the `cookies` field.
+// PageGetAdScriptID (experimental) ...
+type PageGetAdScriptID struct {
+
+	// FrameID ...
+	FrameID PageFrameID `json:"frameId"`
+}
+
+// ProtoReq name
+func (m PageGetAdScriptID) ProtoReq() string { return "Page.getAdScriptId" }
+
+// Call the request
+func (m PageGetAdScriptID) Call(c Client) (*PageGetAdScriptIDResult, error) {
+	var res PageGetAdScriptIDResult
+	return &res, call(m.ProtoReq(), m, &res, c)
+}
+
+// PageGetAdScriptIDResult (experimental) ...
+type PageGetAdScriptIDResult struct {
+
+	// AdScriptID (optional) Identifies the bottom-most script which caused the frame to be labelled
+	// as an ad. Only sent if frame is labelled as an ad and id is available.
+	AdScriptID *PageAdScriptID `json:"adScriptId,omitempty"`
+}
+
+// PageGetCookies (deprecated) (experimental) Returns all browser cookies for the page and all of its subframes. Depending
+// on the backend support, will return detailed cookie information in the
+// `cookies` field.
 type PageGetCookies struct {
 }
 
@@ -2727,11 +2830,14 @@ const (
 	// PageSetSPCTransactionModeModeNone enum const
 	PageSetSPCTransactionModeModeNone PageSetSPCTransactionModeMode = "none"
 
-	// PageSetSPCTransactionModeModeAutoaccept enum const
-	PageSetSPCTransactionModeModeAutoaccept PageSetSPCTransactionModeMode = "autoaccept"
+	// PageSetSPCTransactionModeModeAutoAccept enum const
+	PageSetSPCTransactionModeModeAutoAccept PageSetSPCTransactionModeMode = "autoAccept"
 
-	// PageSetSPCTransactionModeModeAutoreject enum const
-	PageSetSPCTransactionModeModeAutoreject PageSetSPCTransactionModeMode = "autoreject"
+	// PageSetSPCTransactionModeModeAutoReject enum const
+	PageSetSPCTransactionModeModeAutoReject PageSetSPCTransactionModeMode = "autoReject"
+
+	// PageSetSPCTransactionModeModeAutoOptOut enum const
+	PageSetSPCTransactionModeModeAutoOptOut PageSetSPCTransactionModeMode = "autoOptOut"
 )
 
 // PageSetSPCTransactionMode (experimental) Sets the Secure Payment Confirmation transaction mode.
@@ -2851,10 +2957,6 @@ type PageFrameAttached struct {
 
 	// Stack (optional) JavaScript stack trace of when frame was attached, only set if frame initiated from script.
 	Stack *RuntimeStackTrace `json:"stack,omitempty"`
-
-	// AdScriptID (experimental) (optional) Identifies the bottom-most script which caused the frame to be labelled
-	// as an ad. Only sent if frame is labelled as an ad and id is available.
-	AdScriptID *PageAdScriptID `json:"adScriptId,omitempty"`
 }
 
 // ProtoEvent name
@@ -3215,9 +3317,9 @@ type PagePrerenderAttemptCompleted struct {
 	// FinalStatus ...
 	FinalStatus PagePrerenderFinalStatus `json:"finalStatus"`
 
-	// ReasonDetails (optional) This is used to give users more information about the cancellation details,
-	// and this will be formatted for display.
-	ReasonDetails string `json:"reasonDetails,omitempty"`
+	// DisallowedAPIMethod (optional) This is used to give users more information about the name of the API call
+	// that is incompatible with prerender and has caused the cancellation of the attempt
+	DisallowedAPIMethod string `json:"disallowedApiMethod,omitempty"`
 }
 
 // ProtoEvent name

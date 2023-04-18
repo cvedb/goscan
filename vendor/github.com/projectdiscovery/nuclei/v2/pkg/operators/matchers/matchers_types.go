@@ -38,7 +38,7 @@ var MatcherTypes = map[MatcherType]string{
 	DSLMatcher:    "dsl",
 }
 
-//GetType returns the type of the matcher
+// GetType returns the type of the matcher
 func (matcher *Matcher) GetType() MatcherType {
 	return matcher.Type.MatcherType
 }
@@ -98,6 +98,20 @@ func (holder *MatcherTypeHolder) UnmarshalYAML(unmarshal func(interface{}) error
 	}
 
 	computedType, err := toMatcherTypes(marshalledTypes)
+	if err != nil {
+		return err
+	}
+
+	holder.MatcherType = computedType
+	return nil
+}
+
+func (holder *MatcherTypeHolder) UnmarshalJSON(data []byte) error {
+	s := strings.Trim(string(data), `"`)
+	if s == "" {
+		return nil
+	}
+	computedType, err := toMatcherTypes(s)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -99,7 +100,7 @@ func (c *Client) Do(req *http.Request) (resp *http.Response, err error) {
 				}
 				if req.Body != nil {
 					// Refresh the body reader so the body can be sent again
-					e.reqTarget.Body = io.NopCloser(&body)
+					e.reqTarget.Body = ioutil.NopCloser(&body)
 				}
 				return c.Do(e.reqTarget)
 			}
@@ -113,9 +114,9 @@ func (c *Client) Do(req *http.Request) (resp *http.Response, err error) {
 		}
 		if req.Body != nil {
 			// Refresh the body reader so the body can be sent again
-			req.Body = io.NopCloser(&body)
+			req.Body = ioutil.NopCloser(&body)
 		}
-		io.Copy(io.Discard, resp.Body)
+		io.Copy(ioutil.Discard, resp.Body)
 		resp.Body.Close()
 		return c.Do(req)
 	}
@@ -174,18 +175,18 @@ func setRequestSPN(r *http.Request) (types.PrincipalName, error) {
 			return types.PrincipalName{}, err
 		}
 		name, err := net.LookupCNAME(h)
-		if name != "" && err == nil {
+		if err == nil {
 			// Underlyng canonical name should be used for SPN
-			h = strings.ToLower(name)
+			h = name
 		}
 		h = strings.TrimSuffix(h, ".")
 		r.Host = fmt.Sprintf("%s:%s", h, p)
 		return types.NewPrincipalName(nametype.KRB_NT_PRINCIPAL, "HTTP/"+h), nil
 	}
 	name, err := net.LookupCNAME(h)
-	if name != "" && err == nil {
+	if err == nil {
 		// Underlyng canonical name should be used for SPN
-		h = strings.ToLower(name)
+		h = name
 	}
 	h = strings.TrimSuffix(h, ".")
 	r.Host = h

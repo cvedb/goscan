@@ -15,7 +15,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/logrusorgru/aurora"
 
-	"github.com/projectdiscovery/fileutil"
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/interactsh/pkg/server"
 	"github.com/projectdiscovery/nuclei/v2/internal/colorizer"
@@ -24,6 +23,8 @@ import (
 	"github.com/projectdiscovery/nuclei/v2/pkg/operators"
 	"github.com/projectdiscovery/nuclei/v2/pkg/types"
 	"github.com/projectdiscovery/nuclei/v2/pkg/utils"
+	fileutil "github.com/projectdiscovery/utils/file"
+	osutils "github.com/projectdiscovery/utils/os"
 )
 
 // Writer is an interface which writes output to somewhere for nuclei events.
@@ -46,7 +47,7 @@ type Writer interface {
 type StandardWriter struct {
 	json             bool
 	jsonReqResp      bool
-	noTimestamp      bool
+	timestamp        bool
 	noMetadata       bool
 	matcherStatus    bool
 	mutex            *sync.Mutex
@@ -66,10 +67,29 @@ type InternalEvent map[string]interface{}
 
 // InternalWrappedEvent is a wrapped event with operators result added to it.
 type InternalWrappedEvent struct {
+	// Mutex is internal field which is implicitly used
+	// to synchronize callback(event) and interactsh polling updates
+	// Refer protocols/http.Request.ExecuteWithResults for more details
+	sync.RWMutex
+
 	InternalEvent   InternalEvent
 	Results         []*ResultEvent
 	OperatorsResult *operators.Result
 	UsesInteractsh  bool
+}
+
+func (iwe *InternalWrappedEvent) HasOperatorResult() bool {
+	iwe.RLock()
+	defer iwe.RUnlock()
+
+	return iwe.OperatorsResult != nil
+}
+
+func (iwe *InternalWrappedEvent) SetOperatorResult(operatorResult *operators.Result) {
+	iwe.Lock()
+	defer iwe.Unlock()
+
+	iwe.OperatorsResult = operatorResult
 }
 
 // ResultEvent is a wrapped result event for a single nuclei output.
@@ -82,7 +102,7 @@ type ResultEvent struct {
 	// TemplateID is the ID of the template for the result.
 	TemplateID string `json:"template-id"`
 	// TemplatePath is the path of template
-	TemplatePath string `json:"-"`
+	TemplatePath string `json:"template-path,omitempty"`
 	// Info contains information block of the template for the result.
 	Info model.Info `json:"info,inline"`
 	// MatcherName is the name of the matcher matched if any.
@@ -123,53 +143,57 @@ type ResultEvent struct {
 }
 
 // NewStandardWriter creates a new output writer based on user configurations
-func NewStandardWriter(colors, noMetadata, noTimestamp, json, jsonReqResp, MatcherStatus, storeResponse bool, file, traceFile string, errorFile string, storeResponseDir string) (*StandardWriter, error) {
-	auroraColorizer := aurora.NewAurora(colors)
+func NewStandardWriter(options *types.Options) (*StandardWriter, error) {
+	resumeBool := false
+	if options.Resume != "" {
+		resumeBool = true
+	}
+	auroraColorizer := aurora.NewAurora(!options.NoColor)
 
 	var outputFile io.WriteCloser
-	if file != "" {
-		output, err := newFileOutputWriter(file)
+	if options.Output != "" {
+		output, err := newFileOutputWriter(options.Output, resumeBool)
 		if err != nil {
 			return nil, errors.Wrap(err, "could not create output file")
 		}
 		outputFile = output
 	}
 	var traceOutput io.WriteCloser
-	if traceFile != "" {
-		output, err := newFileOutputWriter(traceFile)
+	if options.TraceLogFile != "" {
+		output, err := newFileOutputWriter(options.TraceLogFile, resumeBool)
 		if err != nil {
 			return nil, errors.Wrap(err, "could not create output file")
 		}
 		traceOutput = output
 	}
 	var errorOutput io.WriteCloser
-	if errorFile != "" {
-		output, err := newFileOutputWriter(errorFile)
+	if options.ErrorLogFile != "" {
+		output, err := newFileOutputWriter(options.ErrorLogFile, resumeBool)
 		if err != nil {
 			return nil, errors.Wrap(err, "could not create error file")
 		}
 		errorOutput = output
 	}
 	// Try to create output folder if it doesn't exist
-	if storeResponse && !fileutil.FolderExists(storeResponseDir) {
-		if err := fileutil.CreateFolder(storeResponseDir); err != nil {
-			gologger.Fatal().Msgf("Could not create output directory '%s': %s\n", storeResponseDir, err)
+	if options.StoreResponse && !fileutil.FolderExists(options.StoreResponseDir) {
+		if err := fileutil.CreateFolder(options.StoreResponseDir); err != nil {
+			gologger.Fatal().Msgf("Could not create output directory '%s': %s\n", options.StoreResponseDir, err)
 		}
 	}
 	writer := &StandardWriter{
-		json:             json,
-		jsonReqResp:      jsonReqResp,
-		noMetadata:       noMetadata,
-		matcherStatus:    MatcherStatus,
-		noTimestamp:      noTimestamp,
+		json:             options.JSONL,
+		jsonReqResp:      options.JSONRequests,
+		noMetadata:       options.NoMeta,
+		matcherStatus:    options.MatcherStatus,
+		timestamp:        options.Timestamp,
 		aurora:           auroraColorizer,
 		mutex:            &sync.Mutex{},
 		outputFile:       outputFile,
 		traceFile:        traceOutput,
 		errorFile:        errorOutput,
 		severityColors:   colorizer.New(auroraColorizer),
-		storeResponse:    storeResponse,
-		storeResponseDir: storeResponseDir,
+		storeResponse:    options.StoreResponse,
+		storeResponseDir: options.StoreResponseDir,
 	}
 	return writer, nil
 }
@@ -299,6 +323,9 @@ func sanitizeFileName(fileName string) string {
 	fileName = strings.ReplaceAll(fileName, "\\", "_")
 	fileName = strings.ReplaceAll(fileName, "-", "_")
 	fileName = strings.ReplaceAll(fileName, ".", "_")
+	if osutils.IsWindows() {
+		fileName = strings.ReplaceAll(fileName, ":", "_")
+	}
 	fileName = strings.TrimPrefix(fileName, "__")
 	return fileName
 }

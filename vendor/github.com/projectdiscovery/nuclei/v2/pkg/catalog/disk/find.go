@@ -7,17 +7,24 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v2/pkg/catalog/config"
+	stringsutil "github.com/projectdiscovery/utils/strings"
 )
 
 // GetTemplatesPath returns a list of absolute paths for the provided template list.
-func (c *DiskCatalog) GetTemplatesPath(definitions []string) []string {
+func (c *DiskCatalog) GetTemplatesPath(definitions []string) ([]string, map[string]error) {
 	// keeps track of processed dirs and files
 	processed := make(map[string]bool)
 	allTemplates := []string{}
+	erred := make(map[string]error)
 
 	for _, t := range definitions {
-		if strings.HasPrefix(t, "http") && (strings.HasSuffix(t, ".yaml") || strings.HasSuffix(t, ".yml")) {
+		if stringsutil.ContainsAny(t, knownConfigFiles...) {
+			// TODO: this is a temporary fix to avoid treating these files as templates
+			// this should be replaced with more appropriate and robust logic
+			continue
+		}
+		if strings.HasPrefix(t, "http") && stringsutil.ContainsAny(t, config.GetSupportTemplateFileExtensions()...) {
 			if _, ok := processed[t]; !ok {
 				processed[t] = true
 				allTemplates = append(allTemplates, t)
@@ -25,7 +32,7 @@ func (c *DiskCatalog) GetTemplatesPath(definitions []string) []string {
 		} else {
 			paths, err := c.GetTemplatePath(t)
 			if err != nil {
-				gologger.Error().Msgf("Could not find template '%s': %s\n", t, err)
+				erred[t] = err
 			}
 			for _, path := range paths {
 				if _, ok := processed[path]; !ok {
@@ -35,7 +42,17 @@ func (c *DiskCatalog) GetTemplatesPath(definitions []string) []string {
 			}
 		}
 	}
-	return allTemplates
+	// purge all falsepositivies
+	filteredTemplates := []string{}
+	for _, v := range allTemplates {
+		// TODO: this is a temporary fix to avoid treating these files as templates
+		// this should be replaced with more appropriate and robust logic
+		if !stringsutil.ContainsAny(v, knownConfigFiles...) {
+			filteredTemplates = append(filteredTemplates, v)
+		}
+	}
+
+	return filteredTemplates, erred
 }
 
 // GetTemplatePath parses the specified input template path and returns a compiled
@@ -43,7 +60,6 @@ func (c *DiskCatalog) GetTemplatesPath(definitions []string) []string {
 // or folders provided as in.
 func (c *DiskCatalog) GetTemplatePath(target string) ([]string, error) {
 	processed := make(map[string]struct{})
-
 	absPath, err := c.convertPathToAbsolute(target)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not find template file")
@@ -142,7 +158,7 @@ func (c *DiskCatalog) findDirectoryMatches(absPath string, processed map[string]
 			if err != nil {
 				return nil
 			}
-			if !d.IsDir() && strings.HasSuffix(path, ".yaml") {
+			if !d.IsDir() && config.GetTemplateFormatFromExt(path) != config.Unknown {
 				if _, ok := processed[path]; !ok {
 					results = append(results, path)
 					processed[path] = struct{}{}

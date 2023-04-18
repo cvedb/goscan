@@ -6,27 +6,17 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/pkg/errors"
+	"errors"
 
 	"github.com/projectdiscovery/uncover/uncover"
 )
 
 const (
-	URL        = "https://search.censys.io/api/v2/hosts/search?q=%s&per_page=%d&virtual_hosts=EXCLUDE"
+	URL        = "https://search.censys.io/api/v2/hosts/search?q=%s&per_page=%d&virtual_hosts=INCLUDE"
 	MaxPerPage = 100
 )
 
-type Agent struct {
-	options *uncover.AgentOptions
-}
-
-func New() (uncover.Agent, error) {
-	return &Agent{}, nil
-}
-
-func NewWithOptions(options *uncover.AgentOptions) (uncover.Agent, error) {
-	return &Agent{options: options}, nil
-}
+type Agent struct{}
 
 func (agent *Agent) Name() string {
 	return "censys"
@@ -75,8 +65,7 @@ func (agent *Agent) queryURL(session *uncover.Session, URL string, censysRequest
 	}
 	request.Header.Set("Accept", "application/json")
 	request.SetBasicAuth(session.Keys.CensysToken, session.Keys.CensysSecret)
-	agent.options.RateLimiter.Take()
-	return session.Do(request)
+	return session.Do(request, agent.Name())
 }
 
 func (agent *Agent) query(URL string, session *uncover.Session, censysRequest *CensysRequest, results chan uncover.Result) *CensysResponse {

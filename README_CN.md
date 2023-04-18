@@ -1,4 +1,4 @@
-[![Tweet](https://img.shields.io/twitter/url/http/Hktalent3135773.svg?style=social)](https://twitter.com/intent/follow?screen_name=Hktalent3135773) [![Follow on Twitter](https://img.shields.io/twitter/follow/Hktalent3135773.svg?style=social&label=Follow)](https://twitter.com/intent/follow?screen_name=Hktalent3135773) [![GitHub Followers](https://img.shields.io/github/followers/hktalent.svg?style=social&label=Follow)](https://github.com/hktalent/)
+[![Tweet](https://img.shields.io/twitter/url/http/w3security.svg?style=social)](https://twitter.com/intent/follow?screen_name=w3security) [![Follow on Twitter](https://img.shields.io/twitter/follow/w3security.svg?style=social&label=Follow)](https://twitter.com/intent/follow?screen_name=w3security) [![GitHub Followers](https://img.shields.io/github/followers/w3security.svg?style=social&label=Follow)](https://github.com/w3security/)
 <p align="center">
    <a href="/README.md">README_EN</a> •
    <a href="/static/Installation.md">编译/安装/运行</a> •
@@ -107,13 +107,13 @@ noScan=true  ./goscan -l list.txt  -v
   * 1、当列表中多个域名的ip相同时，合并端口扫描，提高效率
   * 2、智能处理http异常页面、及指纹计算和学习
 - 自动化供应链识别、分析和扫描
-- 联动 python3 <a href=https://github.com/hktalent/log4j-scan>log4j-scan</a>
-  * <a href=https://github.com/fullhunt/log4j-scan/pull/128/files>该版本屏蔽你目标信息传递到 DNS Log Server 的bug，避免暴露漏洞</a>
+- 联动 python3 <a href=https://github.com/w3security/log4j.scan>log4j.scan</a>
+  * <a href=https://github.com/fullhunt/log4j.scan/pull/128/files>该版本屏蔽你目标信息传递到 DNS Log Server 的bug，避免暴露漏洞</a>
   * 增加了将结果发送到 Elasticsearch 的功能，便于批量、盲打
   * 未来有时间了再实现golang版本
     如何使用？
 ```bash
-mkdir ~/MyWork/;cd ~/MyWork/;git clone  https://github.com/hktalent/log4j-scan
+mkdir ~/MyWork/;cd ~/MyWork/;git clone  https://github.com/w3security/log4j.scan
 ```
 - 智能识别蜜罐，并跳过目标，默认该功能是关闭的，可设置EnableHoneyportDetection=true开启
 - 高度可定制：允许通过config/config.json配置定义自己的字典，或者控制更多细节，包含不限于:nuclei、httpx、naabu等
@@ -161,7 +161,7 @@ ulimit -n 819200
 - 1、启动 Elasticsearch, 当然你可以使用传统方式输出、结果
 ```bash
 mkdir -p logs data
-docker run --restart=always --ulimit nofile=65536:65536 -p 9200:9200 -p 9300:9300 -d --name es -v $PWD/logs:/usr/share/elasticsearch/logs -v $PWD/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml -v $PWD/config/jvm.options:/usr/share/elasticsearch/config/jvm.options  -v $PWD/data:/usr/share/elasticsearch/data  hktalent/elasticsearch:7.16.2
+docker run --restart=always --ulimit nofile=65536:65536 -p 9200:9200 -p 9300:9300 -d --name es -v $PWD/logs:/usr/share/elasticsearch/logs -v $PWD/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml -v $PWD/config/jvm.options:/usr/share/elasticsearch/config/jvm.options  -v $PWD/data:/usr/share/elasticsearch/data  w3security/elasticsearch:7.16.2
 # 初始化es 索引,每种工具的结果结构不一样，分开存储
 ./config/initEs.sh
 
@@ -173,7 +173,7 @@ http://127.0.0.1:9200/nmap_index/_doc/_search?q=_id:192.168.0.111
 - 使用前请自行安装nmap
 <a href=https://github.com/w3security/goscan/discussions>使用帮助</a>
 ```bash
-export GOPRIVATE=github.com/hktalent
+export GOPRIVATE=github.com/w3security
 go env |grep GOPRIVATE
 go build
 # 精准扫描 url列表 UrlPrecise=true
@@ -239,7 +239,7 @@ more see: <a href=https://github.com/w3security/goscan/discussions>discussions</
 # 交流群(微信、QQ、Tg)
 | Wechat | Or | QQchat | Or | Tg |
 | --- |--- |--- |--- |--- |
-|<img src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/wc.png>|<img width=166 src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/zfb.png>|[paypal](https://www.paypal.me/pwned2019) **miracletalent@gmail.com**|<img width=166 src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/BTC.png>|<img width=166 src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/BCH.jpg>|
+|<img src=https://raw.githubusercontent.com/w3security/tools/main/md/wc.png>|<img width=166 src=https://raw.githubusercontent.com/w3security/tools/main/md/zfb.png>|[paypal](https://www.paypal.me/w3security) **miracletalent@gmail.com**|<img width=166 src=https://raw.githubusercontent.com/w3security/tools/main/md/BTC.png>|<img width=166 src=https://raw.githubusercontent.com/w3security/tools/main/md/BCH.jpg>|
 
 
 ## 💖Star
@@ -248,11 +248,11 @@ more see: <a href=https://github.com/w3security/goscan/discussions>discussions</
 # Donation
 | Wechat Pay | AliPay | Paypal | BTC Pay |BCH Pay |
 | --- | --- | --- | --- | --- |
-|<img src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/wc.png>|<img width=166 src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/zfb.png>|[paypal](https://www.paypal.me/pwned2019) **miracletalent@gmail.com**|<img width=166 src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/BTC.png>|<img width=166 src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/BCH.jpg>|
+|<img src=https://raw.githubusercontent.com/w3security/tools/main/md/wc.png>|<img width=166 src=https://raw.githubusercontent.com/w3security/tools/main/md/zfb.png>|[paypal](https://www.paypal.me/w3security) **miracletalent@gmail.com**|<img width=166 src=https://raw.githubusercontent.com/w3security/tools/main/md/BTC.png>|<img width=166 src=https://raw.githubusercontent.com/w3security/tools/main/md/BCH.jpg>|
 
 
 <!--
-export GOPRIVATE=github.com/hktalent
+export GOPRIVATE=github.com/w3security
 go env |grep GOPRIVATE
 
 https://github.com/heartshare/go-wafw00f

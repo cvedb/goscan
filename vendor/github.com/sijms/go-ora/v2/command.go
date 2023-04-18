@@ -8,10 +8,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/sijms/go-ora/v2/converters"
 	"github.com/sijms/go-ora/v2/network"
 	"reflect"
 	"regexp"
 	"strings"
+	"time"
 )
 
 type StmtType int
@@ -53,7 +55,7 @@ type defaultStmt struct {
 	autoClose          bool
 }
 
-func (stmt defaultStmt) CanAutoClose() bool {
+func (stmt *defaultStmt) CanAutoClose() bool {
 	return stmt.autoClose
 }
 func (stmt *defaultStmt) hasMoreRows() bool {
@@ -76,6 +78,7 @@ func (stmt *defaultStmt) hasBLOB() bool {
 // through it the stmt data will send to network stream
 func (stmt *defaultStmt) basicWrite(exeOp int, parse, define bool) error {
 	session := stmt.connection.session
+	strConv, _ := stmt.connection.getStrConv(stmt.connection.tcpNego.ServerCharset)
 	session.PutBytes(3, 0x5E, 0)
 	session.PutUint(exeOp, 4, true, true)
 	session.PutUint(stmt.cursorID, 2, true, true)
@@ -86,7 +89,8 @@ func (stmt *defaultStmt) basicWrite(exeOp int, parse, define bool) error {
 		session.PutBytes(0)
 	}
 	if parse {
-		session.PutUint(len(stmt.connection.strConv.Encode(stmt.text)), 4, true, true)
+		session.PutUint(len(strConv.Encode(stmt.text)), 4, true, true)
+		//session.PutUint(len(stmt.connection.strConv.Encode(stmt.text)), 4, true, true)
 		session.PutBytes(1)
 	} else {
 		session.PutBytes(0, 1)
@@ -97,8 +101,9 @@ func (stmt *defaultStmt) basicWrite(exeOp int, parse, define bool) error {
 		session.PutBytes(0)
 		session.PutUint(stmt._noOfRowsToFetch, 4, true, true)
 	} else {
-		session.PutUint(0, 4, true, true)
-		session.PutUint(0, 4, true, true)
+		session.PutBytes(0, 0)
+		//session.PutUint(0, 4, true, true)
+		//session.PutUint(0, 4, true, true)
 	}
 	//switch (longFetchSize)
 	//{
@@ -113,9 +118,14 @@ func (stmt *defaultStmt) basicWrite(exeOp int, parse, define bool) error {
 	//	break;
 	//}
 	// we use here int.MaxValue
-	session.PutUint(0x7FFFFFFF, 4, true, true)
-	//session.PutInt(1, 4, true, true)
-	if len(stmt.Pars) > 0 {
+	if stmt.connection.connOption.Lob == 0 {
+		session.PutInt(0x3FFFFFFF, 4, true, true)
+		//session.PutUint(0, 4, true, true)
+	} else {
+		session.PutUint(0x7FFFFFFF, 4, true, true)
+	}
+
+	if len(stmt.Pars) > 0 && !define {
 		session.PutBytes(1)
 		session.PutUint(len(stmt.Pars), 2, true, true)
 	} else {
@@ -150,68 +160,108 @@ func (stmt *defaultStmt) basicWrite(exeOp int, parse, define bool) error {
 		session.PutBytes(0, 0)
 	}
 	if parse {
-		session.PutClr(stmt.connection.strConv.Encode(stmt.text))
+		session.PutClr(strConv.Encode(stmt.text))
 	}
-	if define {
-		session.PutBytes(0)
-		for x := 0; x < len(stmt.columns); x++ {
-			stmt.columns[x].Flag = 3
-			stmt.columns[x].CharsetForm = 1
-			//stmt.columns[x].MaxLen = 0x7fffffff
-			err := stmt.columns[x].write(session)
-			if err != nil {
-				return err
-			}
-			session.PutBytes(0)
-		}
+	al8i4 := make([]int, 13)
+	if exeOp&1 <= 0 {
+		al8i4[0] = 0
 	} else {
-		al8i4 := make([]int, 13)
-		if exeOp&1 <= 0 {
-			al8i4[0] = 0
-		} else {
-			al8i4[0] = 1
-		}
-		switch stmt.stmtType {
-		case DML:
-			fallthrough
-		case PLSQL:
-			if stmt.arrayBindCount > 0 {
-				al8i4[1] = stmt.arrayBindCount
-				if stmt.stmtType == DML {
-					al8i4[9] = 0x4000
-				}
-			} else {
-				al8i4[1] = 1
+		al8i4[0] = 1
+	}
+	switch stmt.stmtType {
+	case DML:
+		fallthrough
+	case PLSQL:
+		if stmt.arrayBindCount > 0 {
+			al8i4[1] = stmt.arrayBindCount
+			if stmt.stmtType == DML {
+				al8i4[9] = 0x4000
 			}
-		case OTHERS:
+		} else {
 			al8i4[1] = 1
-		default:
-			//this.m_al8i4[1] = !fetch ? 0L : noOfRowsToFetch;
+		}
+	case OTHERS:
+		al8i4[1] = 1
+	default:
+		//this.m_al8i4[1] = !fetch ? 0L : noOfRowsToFetch;
+		//al8i4[1] = stmt._noOfRowsToFetch
+		if stmt.connection.connOption.Lob == 0 {
+			if parse {
+				al8i4[1] = 0
+			} else {
+				al8i4[1] = stmt._noOfRowsToFetch
+			}
+		} else {
 			al8i4[1] = stmt._noOfRowsToFetch
 		}
-		if len(stmt.scnForSnapshot) == 2 {
-			al8i4[5] = stmt.scnForSnapshot[0]
-			al8i4[6] = stmt.scnForSnapshot[1]
-		} else {
-			al8i4[5] = 0
-			al8i4[6] = 0
+
+	}
+	if len(stmt.scnForSnapshot) == 2 {
+		al8i4[5] = stmt.scnForSnapshot[0]
+		al8i4[6] = stmt.scnForSnapshot[1]
+	} else {
+		al8i4[5] = 0
+		al8i4[6] = 0
+	}
+	if stmt.stmtType == SELECT {
+		al8i4[7] = 1
+	} else {
+		al8i4[7] = 0
+	}
+	if exeOp&32 != 0 {
+		al8i4[9] |= 0x8000
+	} else {
+		al8i4[9] &= -0x8000
+	}
+	for x := 0; x < len(al8i4); x++ {
+		session.PutUint(al8i4[x], 4, true, true)
+	}
+	if define {
+		err := stmt.writeDefine()
+		if err != nil {
+			return err
 		}
-		if stmt.stmtType == SELECT {
-			al8i4[7] = 1
-		} else {
-			al8i4[7] = 0
-		}
-		if exeOp&32 != 0 {
-			al8i4[9] |= 0x8000
-		} else {
-			al8i4[9] &= -0x8000
-		}
-		for x := 0; x < len(al8i4); x++ {
-			session.PutUint(al8i4[x], 4, true, true)
+	} else {
+		for _, par := range stmt.Pars {
+			_ = par.write(session)
 		}
 	}
-	for _, par := range stmt.Pars {
-		_ = par.write(session)
+	return nil
+}
+
+func (stmt *defaultStmt) writeDefine() error {
+	session := stmt.connection.session
+	num := 0x7FFFFFFF
+	for _, col := range stmt.columns {
+		temp := new(ParameterInfo)
+		*temp = col
+		temp.oaccollid = 0
+		temp.Precision = 0
+		temp.Scale = 0
+		temp.MaxCharLen = 0
+		if temp.DataType == OCIBlobLocator || temp.DataType == OCIClobLocator {
+			num = 0
+			temp.ContFlag |= 0x2000000
+			if stmt.connection.connOption.Lob != 0 {
+				num = 0x7FFFFFFF
+				temp.MaxCharLen = 0
+				if temp.DataType == OCIBlobLocator {
+					temp.DataType = RAW
+				} else {
+					temp.DataType = NCHAR
+				}
+			} else {
+				temp.MaxCharLen = 0x8000
+			}
+		} else {
+			temp.ContFlag = 0
+		}
+		temp.Flag = 3
+		temp.MaxLen = num
+		err := temp.write(session)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -223,7 +273,7 @@ type Stmt struct {
 	parse        bool // means parse the command in the server this occurs if the stmt is not cached
 	execute      bool
 	define       bool
-
+	bulkExec     bool
 	//noOfDefCols        int
 }
 
@@ -256,14 +306,21 @@ func NewStmt(text string, conn *Connection) *Stmt {
 	ret.arrayBindCount = 0
 	ret.scnForSnapshot = make([]int, 2)
 	// get stmt type
-	uCmdText := strings.TrimSpace(strings.ToUpper(text))
+	uCmdText := strings.ToUpper(text)
 	for {
+		uCmdText = strings.TrimSpace(uCmdText) // trim leading white-space
 		if strings.HasPrefix(uCmdText, "--") {
 			i := strings.Index(uCmdText, "\n")
 			if i <= 0 {
 				break
 			}
 			uCmdText = uCmdText[i+1:]
+		} else if strings.HasPrefix(uCmdText, "/*") {
+			i := strings.Index(uCmdText, "*/")
+			if i <= 0 {
+				break
+			}
+			uCmdText = uCmdText[i+2:]
 		} else {
 			break
 		}
@@ -273,8 +330,11 @@ func NewStmt(text string, conn *Connection) *Stmt {
 	}
 	if strings.HasPrefix(uCmdText, "SELECT") || strings.HasPrefix(uCmdText, "WITH") {
 		ret.stmtType = SELECT
+	} else if strings.HasPrefix(uCmdText, "INSERT") ||
+		strings.HasPrefix(uCmdText, "MERGE") {
+		ret.stmtType = DML
+		ret.bulkExec = true
 	} else if strings.HasPrefix(uCmdText, "UPDATE") ||
-		strings.HasPrefix(uCmdText, "INSERT") ||
 		strings.HasPrefix(uCmdText, "DELETE") {
 		ret.stmtType = DML
 	} else if strings.HasPrefix(uCmdText, "DECLARE") || strings.HasPrefix(uCmdText, "BEGIN") {
@@ -282,11 +342,10 @@ func NewStmt(text string, conn *Connection) *Stmt {
 	} else {
 		ret.stmtType = OTHERS
 	}
-
 	// returning clause
 	var err error
 	if ret.stmtType != PLSQL {
-		ret._hasReturnClause, err = regexp.MatchString(`\bRETURNING\b\s+\w+\s+\bINTO\b`, uCmdText)
+		ret._hasReturnClause, err = regexp.MatchString(`\bRETURNING\b\s+(\w+\s*,\s*)*\s*\w+\s+\bINTO\b`, uCmdText)
 		if err != nil {
 			ret._hasReturnClause = false
 		}
@@ -294,56 +353,62 @@ func NewStmt(text string, conn *Connection) *Stmt {
 	return ret
 }
 
-func (stmt *Stmt) writePars(session *network.Session) error {
+func (stmt *Stmt) writePars() error {
 	if len(stmt.Pars) > 0 {
+		session := stmt.connection.session
 		session.PutBytes(7)
 		for _, par := range stmt.Pars {
+			if par.Flag == 0x80 {
+				continue
+			}
 			if !stmt.parse && par.Direction == Output && stmt.stmtType != PLSQL {
 				continue
 			}
-			if par.DataType != RAW {
-				if par.DataType == REFCURSOR {
-					session.PutBytes(1, 0)
-				} else if par.Direction == Input &&
-					(par.DataType == OCIClobLocator || par.DataType == OCIBlobLocator || par.DataType == OCIFileLocator) {
-					session.PutUint(len(par.BValue), 2, true, true)
-					session.PutClr(par.BValue)
+			if par.DataType == REFCURSOR {
+				session.PutBytes(1, 0)
+			} else if par.Direction == Input &&
+				(par.DataType == OCIClobLocator || par.DataType == OCIBlobLocator || par.DataType == OCIFileLocator) {
+				session.PutUint(len(par.BValue), 2, true, true)
+				session.PutClr(par.BValue)
+			} else {
+				if par.cusType != nil {
+					size := len(par.BValue) + 7
+					session.PutBytes(0, 0, 0, 0)
+					session.PutUint(size, 4, true, true)
+					session.PutBytes(1, 1)
+					tempBuffer := bytes.Buffer{}
+					tempBuffer.Write([]byte{0x84, 0x1, 0xfe})
+					session.WriteUint(&tempBuffer, size, 4, true, false)
+					tempBuffer.Write(par.BValue)
+					session.PutClr(tempBuffer.Bytes())
 				} else {
-					if par.cusType != nil {
-						size := len(par.BValue) + 7
-						session.PutBytes(0, 0, 0, 0)
-						session.PutUint(size, 4, true, true)
-						session.PutBytes(1, 1)
-						tempBuffer := bytes.Buffer{}
-						tempBuffer.Write([]byte{0x84, 0x1, 0xfe})
-						session.WriteUint(&tempBuffer, size, 4, true, false)
-						tempBuffer.Write(par.BValue)
-						session.PutClr(tempBuffer.Bytes())
-					} else {
-						if par.MaxNoOfArrayElements > 0 {
-							if par.BValue == nil {
-								session.PutBytes(0)
-							} else {
-								session.PutBytes(par.BValue...)
-							}
+					if par.MaxNoOfArrayElements > 0 {
+						if par.BValue == nil {
+							session.PutBytes(0)
 						} else {
-							session.PutClr(par.BValue)
+							session.PutBytes(par.BValue...)
 						}
+					} else {
+						session.PutClr(par.BValue)
 					}
 				}
 			}
+			//if par.DataType != RAW {
+			//
+			//}
 		}
-		for _, par := range stmt.Pars {
-			if par.DataType == RAW {
-				session.PutClr(par.BValue)
-			}
-		}
+		//for _, par := range stmt.Pars {
+		//	if par.DataType == RAW {
+		//		session.PutClr(par.BValue)
+		//	}
+		//}
 	}
 	return nil
 }
 
 // write stmt data to network stream
-func (stmt *Stmt) write(session *network.Session) error {
+func (stmt *Stmt) write() error {
+	session := stmt.connection.session
 	if !stmt.parse && !stmt.reSendParDef {
 		exeOf := 0
 		execFlag := 0
@@ -369,9 +434,34 @@ func (stmt *Stmt) write(session *network.Session) error {
 		session.PutUint(count, 2, true, true)
 		session.PutUint(exeOf, 2, true, true)
 		session.PutUint(execFlag, 2, true, true)
-		err := stmt.writePars(session)
-		if err != nil {
-			return err
+		//err := stmt.writePars()
+		//if err != nil {
+		//	return err
+		//}
+		var err error
+		if stmt.bulkExec {
+			arrayValues := make([]driver.Value, len(stmt.Pars))
+			for x := 0; x < len(stmt.Pars); x++ {
+				arrayValues[x] = stmt.Pars[x].Value
+			}
+			for valueIndex := 0; valueIndex < stmt.arrayBindCount; valueIndex++ {
+				for parIndex, arrayValue := range arrayValues {
+					tempVal := reflect.ValueOf(arrayValue)
+					err = stmt.Pars[parIndex].encodeValue(tempVal.Index(valueIndex).Interface(), 0, stmt.connection)
+					if err != nil {
+						return err
+					}
+				}
+				err = stmt.writePars()
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			err = stmt.writePars()
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		//stmt.reExec = true
@@ -379,9 +469,35 @@ func (stmt *Stmt) write(session *network.Session) error {
 		if err != nil {
 			return err
 		}
-		err = stmt.writePars(session)
-		if err != nil {
-			return err
+		if stmt.bulkExec {
+			arrayValues := make([]driver.Value, len(stmt.Pars))
+			for x := 0; x < len(stmt.Pars); x++ {
+				if stmt.Pars[x].Flag == 0x80 {
+					continue
+				}
+				arrayValues[x] = stmt.Pars[x].Value
+			}
+			for valueIndex := 0; valueIndex < stmt.arrayBindCount; valueIndex++ {
+				for parIndex, arrayValue := range arrayValues {
+					if stmt.Pars[parIndex].Flag == 0x80 {
+						continue
+					}
+					tempVal := reflect.ValueOf(arrayValue)
+					err = stmt.Pars[parIndex].encodeValue(tempVal.Index(valueIndex).Interface(), 0, stmt.connection)
+					if err != nil {
+						return err
+					}
+				}
+				err = stmt.writePars()
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			err = stmt.writePars()
+			if err != nil {
+				return err
+			}
 		}
 		stmt.parse = false
 		stmt.define = false
@@ -412,7 +528,7 @@ func (stmt *Stmt) getExeOption() int {
 	if !stmt.parse && !stmt.execute {
 		op |= 0x40
 	}
-	if len(stmt.Pars) > 0 {
+	if len(stmt.Pars) > 0 && !stmt.define {
 		op |= 0x8
 		if stmt.stmtType == PLSQL || stmt._hasReturnClause {
 			op |= 0x400
@@ -454,11 +570,100 @@ func (stmt *defaultStmt) fetch(dataSet *DataSet) error {
 		stmt._noOfRowsToFetch = (0x20000 / maxRowSize) + 1
 		stmt.connection.connOption.Tracer.Printf("Fetch Size Calculated: %d", stmt._noOfRowsToFetch)
 	}
+
+	tracer := stmt.connection.connOption.Tracer
+	failOver := stmt.connection.connOption.Failover
+	if failOver == 0 {
+		failOver = 1
+	}
+
+	// if fetch fail cannot re-fetch only reconnect and return error
+	var err = stmt._fetch(dataSet)
+	var reconnect bool
+	for writeTrials := 0; writeTrials < failOver; writeTrials++ {
+		reconnect, err = stmt.connection.reConnect(err, writeTrials)
+		if err != nil {
+			tracer.Print("Error: ", err)
+			if !reconnect {
+				return err
+			}
+			continue
+		}
+		break
+	}
+	if reconnect {
+		return &network.OracleError{ErrCode: 3135}
+	}
+	return err
+	//if err != nil {
+	//	if errors.Is(err, io.EOF) {
+	//		stmt.connection.State = Closed
+	//		_ = stmt.connection.restore()
+	//	}
+	//	return err
+	//}
+
+	//if err != nil {
+	//	if errors.Is(err, io.EOF) {
+	//		stmt.connection.State = Closed
+	//		_ = stmt.connection.restore()
+	//	}
+	//	return err
+	//}
+
+	// reading lobs
+
+	//return nil
+	//return err
+}
+
+func (stmt *defaultStmt) _fetch(dataSet *DataSet) error {
+	session := stmt.connection.session
+	session.ResetBuffer()
+	session.PutBytes(3, 5, 0)
+	session.PutInt(stmt.cursorID, 2, true, true)
+	session.PutInt(stmt._noOfRowsToFetch, 2, true, true)
+	err := session.Write()
+	if err != nil {
+		return err
+	}
+	err = stmt.read(dataSet)
+	if err != nil {
+		return err
+	}
+	if stmt.connection.connOption.Lob > 0 {
+		return stmt.readLobs(dataSet)
+	}
+	return nil
+}
+func (stmt *defaultStmt) queryLobPrefetch(exeOp int, dataSet *DataSet) error {
+	if stmt._noOfRowsToFetch == 25 {
+		//m_maxRowSize = m_maxRowSize + m_numOfLOBColumns * Math.Max(86, 86 + (int) lobSize) + m_numOfLONGColumns * Math.Max(2, longSize) + m_numOfBFileColumns * 86;
+		maxRowSize := 0
+		for _, col := range dataSet.Cols {
+			if col.DataType == OCIClobLocator || col.DataType == OCIBlobLocator {
+				maxRowSize += 86
+			} else if col.DataType == LONG || col.DataType == LongRaw {
+				maxRowSize += 2
+			} else if col.DataType == OCIFileLocator {
+				maxRowSize += 86
+			} else {
+				maxRowSize += col.MaxLen
+			}
+		}
+		stmt._noOfRowsToFetch = (0x20000 / maxRowSize) + 1
+		stmt.connection.connOption.Tracer.Printf("Fetch Size Calculated: %d", stmt._noOfRowsToFetch)
+	}
 	stmt.connection.session.ResetBuffer()
-	stmt.connection.session.PutBytes(3, 5, 0)
-	stmt.connection.session.PutInt(stmt.cursorID, 2, true, true)
-	stmt.connection.session.PutInt(stmt._noOfRowsToFetch, 2, true, true)
-	err := stmt.connection.session.Write()
+	err := stmt.basicWrite(exeOp, false, true)
+	if err != nil {
+		return err
+	}
+	//err = stmt.writePars()
+	//if err != nil {
+	//	return err
+	//}
+	err = stmt.connection.session.Write()
 	if err != nil {
 		return err
 	}
@@ -476,28 +681,12 @@ func (stmt *defaultStmt) read(dataSet *DataSet) error {
 	for loop {
 		msg, err := session.GetByte()
 		if err != nil {
+			if session.Summary != nil {
+				stmt.cursorID = stmt.connection.session.Summary.CursorID
+			}
 			return err
 		}
 		switch msg {
-		case 4:
-			stmt.connection.session.Summary, err = network.NewSummary(session)
-			if err != nil {
-				return err
-			}
-			stmt.connection.connOption.Tracer.Printf("Summary: RetCode:%d, Error Message:%q", stmt.connection.session.Summary.RetCode, string(stmt.connection.session.Summary.ErrorMessage))
-
-			stmt.cursorID = stmt.connection.session.Summary.CursorID
-			stmt.disableCompression = stmt.connection.session.Summary.Flags&0x20 != 0
-			if stmt.connection.session.HasError() {
-				if stmt.connection.session.Summary.RetCode == 1403 {
-					stmt._hasMoreRows = false
-					stmt.connection.session.Summary = nil
-				} else {
-					return stmt.connection.session.GetError()
-				}
-
-			}
-			loop = false
 		case 6:
 			//_, err = session.GetByte()
 			err = dataSet.load(session)
@@ -527,7 +716,6 @@ func (stmt *defaultStmt) read(dataSet *DataSet) error {
 							stmt.Pars[x].BValue = nil
 							stmt.Pars[x].Value = nil
 						} else {
-
 							err = stmt.calculateParameterValue(&stmt.Pars[x])
 							if err != nil {
 								return err
@@ -548,9 +736,16 @@ func (stmt *defaultStmt) read(dataSet *DataSet) error {
 								if cursor, ok := stmt.Pars[x].Value.(*RefCursor); ok {
 									cursor.connection = stmt.connection
 									cursor.parent = stmt
+									cursor.autoClose = true
 									err = cursor.load()
 									if err != nil {
 										return err
+									}
+									if stmt.stmtType == PLSQL {
+										_, err = session.GetInt(2, true, true)
+										if err != nil {
+											return err
+										}
 									}
 								} else {
 									return errors.New("RefCursor parameter should contain pointer to  RefCursor struct")
@@ -627,16 +822,6 @@ func (stmt *defaultStmt) read(dataSet *DataSet) error {
 			if err != nil {
 				return err
 			}
-			//if num > 0 {
-			//	_, err = session.GetBytes(num)
-			//	if err != nil {
-			//		return err
-			//	}
-			//}
-			//fmt.Println(num)
-			//if (num > 0)
-			//	this.m_marshallingEngine.UnmarshalNBytes_ScanOnly(num);
-			// get session timezone
 			size, err = session.GetInt(2, true, true)
 			for x := 0; x < size; x++ {
 				_, val, num, err := session.GetKeyVal()
@@ -749,6 +934,14 @@ func (stmt *defaultStmt) read(dataSet *DataSet) error {
 			if session.TTCVersion >= 5 {
 				_, err = session.GetDlc()
 			}
+		case 19:
+			session.ResetBuffer()
+			session.PutBytes(19)
+			err = session.Write()
+			if err != nil {
+				return err
+			}
+			continue
 		case 21:
 			_, err := session.GetInt(2, true, true) // noOfColumnSent
 			if err != nil {
@@ -766,52 +959,118 @@ func (stmt *defaultStmt) read(dataSet *DataSet) error {
 				}
 			}
 			dataSet.setBitVector(bitVector)
-		case 23:
-			opCode, err := session.GetByte()
-			if err != nil {
-				return err
-			}
-			err = stmt.connection.getServerNetworkInformation(opCode)
-			if err != nil {
-				return err
-			}
 		default:
-			return errors.New(fmt.Sprintf("TTC error: received code %d during stmt reading", msg))
+			err = stmt.connection.readResponse(msg)
+			if err != nil {
+				return err
+			}
+			if msg == 4 {
+				stmt.cursorID = stmt.connection.session.Summary.CursorID
+				stmt.disableCompression = stmt.connection.session.Summary.Flags&0x20 != 0
+				if stmt.connection.session.HasError() {
+					if stmt.connection.session.Summary.RetCode == 1403 {
+						stmt._hasMoreRows = false
+						stmt.connection.session.Summary = nil
+					} else {
+						return stmt.connection.session.GetError()
+					}
+
+				}
+				loop = false
+			} else if msg == 9 {
+				loop = false
+			}
+			//return errors.New(fmt.Sprintf("TTC error: received code %d during stmt reading", msg))
+		}
+	}
+	if session.IsBreak() {
+		err := (&simpleObject{
+			connection: stmt.connection,
+		}).read()
+		if err != nil {
+			return err
 		}
 	}
 	if stmt.connection.connOption.Tracer.IsOn() {
 		dataSet.Trace(stmt.connection.connOption.Tracer)
 	}
-	return stmt.readLobs(dataSet)
-	//return nil
+	//return stmt.readLobs(dataSet)
+	return nil
 }
 
 func (stmt *defaultStmt) freeTemporaryLobs() error {
 	var locators [][]byte
 	for _, par := range stmt.Pars {
-		if par.Direction == Input {
-			switch value := par.Value.(type) {
-			case Clob:
-				if value.locator != nil {
-					locators = append(locators, value.locator)
-				}
-			case *Clob:
-				if value.locator != nil {
-					locators = append(locators, value.locator)
-				}
-			case Blob:
-				if value.locator != nil {
-					locators = append(locators, value.locator)
-				}
-			case *Blob:
-				if value.locator != nil {
-					locators = append(locators, value.locator)
-				}
+		//if par.Direction == Input {
+		switch value := par.Value.(type) {
+		case Clob:
+			if value.locator != nil {
+				locators = append(locators, value.locator)
+			}
+		case *Clob:
+			if value.locator != nil {
+				locators = append(locators, value.locator)
+			}
+		case Blob:
+			if value.locator != nil {
+				locators = append(locators, value.locator)
+			}
+		case *Blob:
+			if value.locator != nil {
+				locators = append(locators, value.locator)
+			}
+		case NClob:
+			if value.locator != nil {
+				locators = append(locators, value.locator)
+			}
+		case *NClob:
+			if value.locator != nil {
+				locators = append(locators, value.locator)
 			}
 		}
+		//}
 	}
-	return (&Lob{connection: stmt.connection}).freeAllTemporary(locators)
+	if len(locators) == 0 {
+		return nil
+	}
+	stmt.connection.connOption.Tracer.Printf("Free %d Temporary Lobs", len(locators))
+	session := stmt.connection.session
+	freeTemp := func(locators [][]byte) {
+		totalLen := 0
+		for _, locator := range locators {
+			totalLen += len(locator)
+		}
+		session.PutBytes(0x11, 0x60, 0, 1)
+		session.PutUint(totalLen, 4, true, true)
+		session.PutBytes(0, 0, 0, 0, 0, 0, 0)
+		session.PutUint(0x80111, 4, true, true)
+		session.PutBytes(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+		for _, locator := range locators {
+			session.PutBytes(locator...)
+		}
+	}
+	start := 0
+	end := 0
+	session.ResetBuffer()
+	for start < len(locators) {
+		end = start + 25000
+		if end > len(locators) {
+			end = len(locators)
+		}
+		freeTemp(locators[start:end])
+		start += end
+	}
+	session.PutBytes(0x3, 0x93, 0x0)
+	err := session.Write()
+	if err != nil {
+		return err
+	}
+	return (&simpleObject{
+		connection: stmt.connection,
+	}).read()
+	//return (&Lob{connection: stmt.connection}).freeAllTemporary(locators)
 }
+
 func (stmt *defaultStmt) readLob(col ParameterInfo, locator []byte) (driver.Value, error) {
 	if locator == nil {
 		return nil, nil
@@ -830,32 +1089,42 @@ func (stmt *defaultStmt) readLob(col ParameterInfo, locator []byte) (driver.Valu
 		return nil, err
 	}
 	if col.DataType == OCIBlobLocator {
-		//if !lob.isValid() {
-		//
-		//}
 		if dataSize != int64(len(lobData)) {
 			return nil, errors.New("error reading lob data: data size mismatching")
 		}
 		return lobData, nil
 	} else {
-		tempCharset := stmt.connection.strConv.GetLangID()
+		conn := stmt.connection
+		var strConv converters.IStringConverter
+		//tempCharset := conn.strConv.GetLangID()
 		if lob.variableWidthChar() {
-			if stmt.connection.dBVersion.Number < 10200 && lob.littleEndianClob() {
-				stmt.connection.strConv.SetLangID(2002)
+			if conn.dBVersion.Number < 10200 && lob.littleEndianClob() {
+				strConv, _ = conn.getStrConv(2002)
+				//conn.strConv.SetLangID(2002)
 			} else {
-				stmt.connection.strConv.SetLangID(2000)
+				strConv, _ = conn.getStrConv(2000)
+				//conn.strConv.SetLangID(2000)
 			}
 		} else {
-			stmt.connection.strConv.SetLangID(col.CharsetID)
+			strConv, err = conn.getStrConv(col.CharsetID)
+			if err != nil {
+				return nil, err
+			}
+			//if conn.connOption.CharsetID != 0 && col.CharsetForm == 1 {
+			//	conn.strConv.SetLangID(conn.connOption.CharsetID)
+			//} else {
+			//	conn.strConv.SetLangID(col.CharsetID)
+			//}
 		}
-		resultClobString := stmt.connection.strConv.Decode(lobData)
-		stmt.connection.strConv.SetLangID(tempCharset)
+		resultClobString := strConv.Decode(lobData)
+		//conn.strConv.SetLangID(tempCharset)
 		//if dataSize != int64(len([]rune(resultClobString))) {
 		//	return nil, errors.New("error reading clob data")
 		//}
 		return resultClobString, nil
 	}
 }
+
 func (stmt *defaultStmt) readLobs(dataSet *DataSet) error {
 	if stmt._hasBLOB {
 		if stmt.containOutputPars {
@@ -878,6 +1147,37 @@ func (stmt *defaultStmt) readLobs(dataSet *DataSet) error {
 							}
 						}
 					case Clob:
+						if val.locator == nil {
+							val.Valid = false
+							val.String = ""
+						} else {
+							tempVal, err := stmt.readLob(par, val.locator)
+							if err != nil {
+								return err
+							}
+							if stringVal, ok := tempVal.(string); ok {
+								val.String = stringVal
+							} else {
+								return &network.OracleError{ErrCode: 6502, ErrMsg: "numberic or value error"}
+							}
+						}
+						stmt.Pars[parIndex].Value = val
+					case *NClob:
+						if val.locator == nil {
+							val.Valid = false
+							val.String = ""
+						} else {
+							tempVal, err := stmt.readLob(par, val.locator)
+							if err != nil {
+								return err
+							}
+							if stringVal, ok := tempVal.(string); ok {
+								val.String = stringVal
+							} else {
+								return &network.OracleError{ErrCode: 6502, ErrMsg: "numberic or value error"}
+							}
+						}
+					case NClob:
 						if val.locator == nil {
 							val.Valid = false
 							val.String = ""
@@ -963,6 +1263,34 @@ func (stmt *defaultStmt) readLobs(dataSet *DataSet) error {
 									return &network.OracleError{ErrCode: 6502, ErrMsg: "numeric or value error"}
 								}
 							}
+						case *NClob:
+							if val.locator == nil {
+								row[colIndex] = nil
+							} else {
+								tempVal, err := stmt.readLob(col, val.locator)
+								if err != nil {
+									return err
+								}
+								if stringVal, ok := tempVal.(string); ok {
+									row[colIndex] = stringVal
+								} else {
+									return &network.OracleError{ErrCode: 6502, ErrMsg: "numeric or value error"}
+								}
+							}
+						case NClob:
+							if val.locator == nil {
+								row[colIndex] = nil
+							} else {
+								tempVal, err := stmt.readLob(col, val.locator)
+								if err != nil {
+									return err
+								}
+								if stringVal, ok := tempVal.(string); ok {
+									row[colIndex] = stringVal
+								} else {
+									return &network.OracleError{ErrCode: 6502, ErrMsg: "numeric or value error"}
+								}
+							}
 						case *Blob:
 							if val.locator == nil {
 								row[colIndex] = nil
@@ -1014,10 +1342,10 @@ func (stmt *defaultStmt) requestCustomTypeInfo(typeName string) error {
 	//session.PutBytes(2)
 	session.PutInt(len(stmt.connection.connOption.UserID), 4, true, true)
 	//session.PutBytes(0, 0, 0)
-	session.PutClr(stmt.connection.strConv.Encode(stmt.connection.connOption.UserID))
+	session.PutClr(stmt.connection.sStrConv.Encode(stmt.connection.connOption.UserID))
 	session.PutInt(len(typeName), 4, true, true)
 	//session.PutBytes(0, 0, 0)
-	session.PutClr(stmt.connection.strConv.Encode(typeName))
+	session.PutClr(stmt.connection.sStrConv.Encode(typeName))
 	//session.PutBytes(0, 0, 0)
 	//if session.TTCVersion >= 4 {
 	//	session.PutBytes(0, 0, 1)
@@ -1066,6 +1394,24 @@ func (stmt *defaultStmt) calculateColumnValue(col *ParameterInfo) error {
 	//if col.DataType == OCIBlobLocator || col.DataType == OCIClobLocator {
 	//	stmt._hasBLOB = true
 	//}
+	if col.DataType == REFCURSOR {
+		var cursor = new(RefCursor)
+		cursor.connection = stmt.connection
+		cursor.parent = stmt
+		cursor.autoClose = true
+		err := cursor.load()
+		if err != nil {
+			return err
+		}
+		if stmt.stmtType == PLSQL {
+			_, err = session.GetInt(2, true, true)
+			if err != nil {
+				return err
+			}
+		}
+		col.Value = cursor
+		return nil
+	}
 	if col.DataType == XMLType {
 		if col.TypeName == "XMLTYPE" {
 			return errors.New("unsupported data type: XMLTYPE")
@@ -1128,6 +1474,7 @@ func (stmt *defaultStmt) calculateColumnValue(col *ParameterInfo) error {
 		}
 		return nil
 	}
+
 	return col.decodeColumnValue(stmt.connection)
 }
 
@@ -1246,89 +1593,177 @@ func (stmt *defaultStmt) Close() error {
 			operationID: 0x93,
 			data:        nil,
 			err:         nil,
-		}).write().read()
+		}).exec()
 	}
 	return nil
 }
 
-func (stmt *Stmt) ExecContext(ctx context.Context, namedArgs []driver.NamedValue) (driver.Result, error) {
+func (stmt *Stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
 	if stmt.connection.State != Opened {
 		return nil, &network.OracleError{ErrCode: 6413, ErrMsg: "ORA-06413: Connection not open"}
 	}
 	stmt.connection.connOption.Tracer.Printf("Exec With Context:")
-	args := make([]driver.Value, len(namedArgs))
-	for x := 0; x < len(args); x++ {
-		args[x] = namedArgs[x].Value
-	}
+	//args := make([]driver.Value, len(namedArgs))
+	//for x := 0; x < len(args); x++ {
+	//	args[x] = namedArgs[x].Value
+	//}
 	stmt.connection.session.StartContext(ctx)
 	defer stmt.connection.session.EndContext()
-	return stmt.Exec(args)
-}
 
-// Exec execute stmt (INSERT, UPDATE, DELETE, DML, PLSQL) and return driver.Result object
-func (stmt *Stmt) Exec(args []driver.Value) (driver.Result, error) {
 	if stmt.connection.State != Opened {
 		return nil, &network.OracleError{ErrCode: 6413, ErrMsg: "ORA-06413: Connection not open"}
 	}
-	stmt.connection.connOption.Tracer.Printf("Exec:\n%s", stmt.text)
-	var err error
+	tracer := stmt.connection.connOption.Tracer
+	failOver := stmt.connection.connOption.Failover
+	if failOver == 0 {
+		failOver = 1
+	}
+	tracer.Printf("Exec:\n%s", stmt.text)
+	result, err := stmt._exec(args)
+	var reconnect bool
+	for writeTrials := 0; writeTrials < failOver; writeTrials++ {
+		reconnect, err = stmt.connection.reConnect(err, writeTrials)
+		if err != nil {
+			tracer.Print("Error: ", err)
+			if !reconnect {
+				return nil, err
+			}
+			continue
+		}
+		break
+	}
+	if reconnect {
+		return nil, &network.OracleError{ErrCode: 3135}
+	}
+	return result, err
+	//return stmt.Exec(args)
+}
 
+func (stmt *Stmt) _exec(args []driver.NamedValue) (*QueryResult, error) {
+	var err error
+	var useNamedPars = len(args) > 0
 	for x := 0; x < len(args); x++ {
 		var par *ParameterInfo
-		switch tempOut := args[x].(type) {
+		switch tempOut := args[x].Value.(type) {
 		case sql.Out:
-			par, err = stmt.NewParam("", tempOut.Dest, 0, Output)
+			direction := Output
+			if tempOut.In {
+				direction = InOut
+			}
+			par, err = stmt.NewParam(args[x].Name, tempOut.Dest, 0, direction)
 			if err != nil {
 				return nil, err
 			}
 		case *sql.Out:
-			par, err = stmt.NewParam("", tempOut.Dest, 0, Output)
+			direction := Output
+			if tempOut.In {
+				direction = InOut
+			}
+			par, err = stmt.NewParam(args[x].Name, tempOut.Dest, 0, direction)
 			if err != nil {
 				return nil, err
 			}
 		case Out:
-			par, err = stmt.NewParam("", tempOut.Dest, tempOut.Size, Output)
+			direction := Output
+			if tempOut.In {
+				direction = InOut
+			}
+			par, err = stmt.NewParam(args[x].Name, tempOut.Dest, tempOut.Size, direction)
 			if err != nil {
 				return nil, err
 			}
 		case *Out:
-			par, err = stmt.NewParam("", tempOut.Dest, tempOut.Size, Output)
+			direction := Output
+			if tempOut.In {
+				direction = InOut
+			}
+			par, err = stmt.NewParam(args[x].Name, tempOut.Dest, tempOut.Size, direction)
 			if err != nil {
 				return nil, err
 			}
 		default:
-			par, err = stmt.NewParam("", args[x], 0, Input)
-			if err != nil {
-				return nil, err
+			if stmt.bulkExec {
+				tempType := reflect.TypeOf(args[x].Value)
+				if tempType != reflect.TypeOf([]byte{}) && (tempType.Kind() == reflect.Array || tempType.Kind() == reflect.Slice) {
+					tempVal := reflect.ValueOf(args[x].Value)
+					if stmt.arrayBindCount == 0 {
+						stmt.arrayBindCount = tempVal.Len()
+					} else {
+						if stmt.arrayBindCount > tempVal.Len() {
+							stmt.arrayBindCount = tempVal.Len()
+						}
+					}
+					par, err = stmt.NewParam(args[x].Name, tempVal.Index(0).Interface(), 0, Input)
+					if err != nil {
+						return nil, err
+					}
+					maxLen := par.MaxLen
+					maxCharLen := par.MaxCharLen
+					dataType := par.DataType
+					for y := 1; y < stmt.arrayBindCount; y++ {
+						err = par.encodeValue(tempVal.Index(y).Interface(), 0, stmt.connection)
+						if err != nil {
+							return nil, err
+						}
+						if maxLen < par.MaxLen {
+							maxLen = par.MaxLen
+						}
+						if maxCharLen < par.MaxCharLen {
+							maxCharLen = par.MaxCharLen
+						}
+						if par.DataType != dataType && par.DataType != NCHAR {
+							dataType = par.DataType
+						}
+					}
+					_ = par.encodeValue(tempVal.Index(0).Interface(), 0, stmt.connection)
+					par.MaxLen = maxLen
+					par.MaxCharLen = maxCharLen
+					par.DataType = dataType
+					par.Value = args[x].Value
+				} else {
+					if stmt.arrayBindCount > 0 {
+						return nil, errors.New("to activate bulk insert/merge all parameters should be arrays")
+					}
+					stmt.bulkExec = false
+				}
 			}
-		}
-		if x < len(stmt.Pars) {
-			if par.MaxLen > stmt.Pars[x].MaxLen {
-				stmt.reSendParDef = true
+			if par == nil {
+				par, err = stmt.NewParam(args[x].Name, args[x].Value, 0, Input)
+				if err != nil {
+					return nil, err
+				}
 			}
-			stmt.Pars[x] = *par
-		} else {
-			stmt.Pars = append(stmt.Pars, *par)
+
 		}
+		if len(par.Name) == 0 && useNamedPars {
+			useNamedPars = false
+		}
+		stmt.setParam(x, *par)
 		stmt.connection.connOption.Tracer.Printf("    %d:\n%v", x, args[x])
+	}
+	if useNamedPars {
+		err = stmt.useNamedParameters()
+		if err != nil {
+			return nil, err
+		}
 	}
 	defer func() {
 		_ = stmt.freeTemporaryLobs()
 	}()
+
 	session := stmt.connection.session
-	//if len(args) > 0 {
-	//	stmt.Pars = nil
-	//}
-	//for x := 0; x < len(args); x++ {
-	//	stmt.AddParam("", args[x], 0, Input)
-	//}
 	session.ResetBuffer()
-	err = stmt.write(session)
+	err = stmt.write()
 	if err != nil {
 		return nil, err
 	}
 	dataSet := new(DataSet)
 	err = stmt.read(dataSet)
+	if err != nil {
+		return nil, err
+	}
+	// need to deal with lobs
+	err = stmt.readLobs(dataSet)
 	if err != nil {
 		return nil, err
 	}
@@ -1339,7 +1774,77 @@ func (stmt *Stmt) Exec(args []driver.Value) (driver.Result, error) {
 	return result, nil
 }
 
-func (stmt *Stmt) CheckNamedValue(named *driver.NamedValue) error {
+// useNamedParameters: re-arrange parameters according parameter defined in sql text
+func (stmt *Stmt) useNamedParameters() error {
+	names, err := parseSqlText(stmt.text)
+	if err != nil {
+		return err
+	}
+	var parCollection = make([]ParameterInfo, 0, len(names))
+	for x := 0; x < len(names); x++ {
+		found := false
+		for _, par := range stmt.Pars {
+			if par.Name == names[x] {
+				parCollection = append(parCollection, par)
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("parameter %s is not defined in parameter list", names[x])
+		}
+		for y := x - 1; y >= 0; y-- {
+			if names[y] == names[x] {
+				parCollection[x].Flag = 0x80
+				break
+			}
+		}
+	}
+	stmt.Pars = parCollection
+	return nil
+}
+
+// Exec execute stmt (INSERT, UPDATE, DELETE, DML, PLSQL) and return driver.Result object
+func (stmt *Stmt) Exec(args []driver.Value) (driver.Result, error) {
+	if stmt.connection.State != Opened {
+		return nil, &network.OracleError{ErrCode: 6413, ErrMsg: "ORA-06413: Connection not open"}
+	}
+	tracer := stmt.connection.connOption.Tracer
+	failOver := stmt.connection.connOption.Failover
+	if failOver == 0 {
+		failOver = 1
+	}
+	tracer.Printf("Exec:\n%s", stmt.text)
+	var result *QueryResult
+	var err error
+	if len(args) == 0 {
+		result, err = stmt._exec(nil)
+	} else {
+		var namedArgs = make([]driver.NamedValue, len(args))
+		for x := 0; x < len(args); x++ {
+			namedArgs[x].Value = args[x]
+		}
+		result, err = stmt._exec(namedArgs)
+	}
+	var reconnect bool
+	for writeTrials := 0; writeTrials < failOver; writeTrials++ {
+		reconnect, err = stmt.connection.reConnect(err, writeTrials)
+		if err != nil {
+			tracer.Print("Error: ", err)
+			if !reconnect {
+				return nil, err
+			}
+			continue
+		}
+		break
+	}
+	if reconnect {
+		return nil, &network.OracleError{ErrCode: 3135}
+	}
+	return result, err
+}
+
+func (stmt *Stmt) CheckNamedValue(_ *driver.NamedValue) error {
 	return nil
 }
 
@@ -1397,32 +1902,195 @@ func (stmt *Stmt) AddRefCursorParam(name string) {
 // Query_ execute a query command and return oracle dataset object
 //
 // args is an array of values that corresponding to parameters in sql
-func (stmt *Stmt) Query_(args []driver.Value) (*DataSet, error) {
+func (stmt *Stmt) Query_(namedArgs []driver.NamedValue) (*DataSet, error) {
 	if stmt.connection.State != Opened {
 		return nil, &network.OracleError{ErrCode: 6413, ErrMsg: "ORA-06413: Connection not open"}
 	}
-	result, err := stmt.Query(args)
-	if err != nil {
-		return nil, err
+	tracer := stmt.connection.connOption.Tracer
+	stmt._noOfRowsToFetch = stmt.connection.connOption.PrefetchRows
+	stmt._hasMoreRows = true
+	var useNamedPars = len(namedArgs) > 0
+	for x := 0; x < len(namedArgs); x++ {
+		par, err := stmt.NewParam(namedArgs[x].Name, namedArgs[x].Value, 0, Input)
+		if err != nil {
+			return nil, err
+		}
+		if len(par.Name) == 0 && useNamedPars {
+			useNamedPars = false
+		}
+		stmt.setParam(x, *par)
+		tracer.Printf("    %d:\n%v", x, namedArgs[x])
 	}
-	if dataSet, ok := result.(*DataSet); ok {
-		return dataSet, nil
+
+	if useNamedPars {
+		err := stmt.useNamedParameters()
+		if err != nil {
+			return nil, err
+		}
 	}
-	return nil, errors.New("the returned driver.rows is not an oracle DataSet")
+
+	failOver := stmt.connection.connOption.Failover
+	retryTime := stmt.connection.connOption.RetryTime
+	if failOver == 0 {
+		failOver = 1
+	}
+	var dataSet *DataSet
+	var err error
+	var reconnect bool
+	for writeTrials := 0; writeTrials < failOver; writeTrials++ {
+		reconnect, err = stmt.connection.reConnect(nil, writeTrials+1)
+		if err != nil {
+			tracer.Print("Error: ", err)
+			if !reconnect {
+				return nil, err
+			}
+			continue
+		}
+		// reset statement if connection break and reconnect
+		if writeTrials > 0 {
+			stmt.reset()
+		}
+		// call query
+		dataSet, err = stmt._query()
+		if err == nil {
+			break
+		}
+		reconnect, err = stmt.connection.reConnect(err, writeTrials+1)
+		if err != nil {
+			tracer.Print("Error: ", err)
+			if !reconnect {
+				return nil, err
+			}
+		}
+		if retryTime > 0 {
+			time.Sleep(time.Duration(retryTime) * time.Second)
+		}
+	}
+	return dataSet, err
+
+	//result, err := stmt.Query(args)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//if dataSet, ok := result.(*DataSet); ok {
+	//	return dataSet, nil
+	//}
+	//return nil, errors.New("the returned driver.rows is not an oracle DataSet")
 }
 
 func (stmt *Stmt) QueryContext(ctx context.Context, namedArgs []driver.NamedValue) (driver.Rows, error) {
 	if stmt.connection.State != Opened {
 		return nil, &network.OracleError{ErrCode: 6413, ErrMsg: "ORA-06413: Connection not open"}
 	}
-	stmt.connection.connOption.Tracer.Printf("Query With Context:", stmt.text)
-	args := make([]driver.Value, len(namedArgs))
-	for x := 0; x < len(args); x++ {
-		args[x] = namedArgs[x].Value
-	}
+	tracer := stmt.connection.connOption.Tracer
+	tracer.Print("Query With Context:", stmt.text)
+
 	stmt.connection.session.StartContext(ctx)
 	defer stmt.connection.session.EndContext()
-	return stmt.Query(args)
+	return stmt.Query_(namedArgs)
+}
+
+func (stmt *Stmt) reset() {
+	stmt.reSendParDef = false
+	stmt.parse = true
+	stmt.execute = true
+	stmt.define = false
+	stmt._hasBLOB = false
+	stmt._hasLONG = false
+	stmt.bulkExec = false
+	stmt.disableCompression = true
+	stmt.arrayBindCount = 0
+}
+
+func (stmt *Stmt) _query() (*DataSet, error) {
+	var err error
+	var dataSet *DataSet
+	stmt.connection.session.ResetBuffer()
+	err = stmt.write()
+	if err != nil {
+		return nil, err
+	}
+	dataSet = new(DataSet)
+	err = stmt.read(dataSet)
+	if err != nil {
+		return nil, err
+	}
+	// deal with ref cursor
+	for colIndex, col := range dataSet.Cols {
+		if col.DataType == REFCURSOR {
+			for rowIndex, row := range dataSet.rows {
+				if cursor, ok := row[colIndex].(*RefCursor); ok {
+					dataSet.rows[rowIndex][colIndex], err = cursor.Query()
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
+	}
+	// deal with lobs
+	if stmt._hasBLOB {
+		if stmt.connection.connOption.Lob == 0 {
+			stmt.define = true
+			stmt.execute = false
+			stmt.parse = false
+			stmt.reSendParDef = false
+			err = stmt.queryLobPrefetch(stmt.getExeOption(), dataSet)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			err = stmt.readLobs(dataSet)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	//tracer := stmt.connection.connOption.Tracer
+	//failOver := stmt.connection.connOption.Failover
+	//if failOver == 0 {
+	//	failOver = 1
+	//}
+	//for writeTrials := 0; writeTrials < failOver; writeTrials++ {
+	//	if stmt.connection.State != Opened {
+	//		tracer.Print("reconnect trial #", writeTrials+1)
+	//		err = stmt.connection.Open()
+	//		if err != nil {
+	//			tracer.Print("Error: ", err)
+	//		}
+	//		continue
+	//	}
+	//	//stmt.reset()
+	//
+	//	if err != nil {
+	//		if errors.Is(err, io.EOF) || errors.Is(err, syscall.EPIPE) {
+	//			tracer.Print("reconnect trial #", writeTrials+1)
+	//			stmt.connection.State = Closed
+	//			err = stmt.connection.Open()
+	//			if err != nil {
+	//				tracer.Print("Error: ", err)
+	//			}
+	//			continue
+	//		}
+	//		return nil, err
+	//	}
+	//
+	//	if err != nil {
+	//		if errors.Is(err, io.EOF) || errors.Is(err, syscall.EPIPE) {
+	//			stmt.connection.connOption.Tracer.Print("reconnect trial #", writeTrials+1)
+	//			stmt.connection.State = Closed
+	//			err = stmt.connection.Open()
+	//			if err != nil {
+	//				tracer.Print("Error: ", err)
+	//			}
+	//			continue
+	//		}
+	//		return nil, err
+	//	}
+	//	break
+	//}
+	return dataSet, err
 }
 
 // Query execute a query command and return dataset object in form of driver.Rows interface
@@ -1432,29 +2100,70 @@ func (stmt *Stmt) Query(args []driver.Value) (driver.Rows, error) {
 	if stmt.connection.State != Opened {
 		return nil, &network.OracleError{ErrCode: 6413, ErrMsg: "ORA-06413: Connection not open"}
 	}
-	stmt.connection.connOption.Tracer.Printf("Query:\n%s", stmt.text)
-	stmt._noOfRowsToFetch = stmt.connection.connOption.PrefetchRows
-	//stmt._noOfRowsToFetch = 25
-	stmt._hasMoreRows = true
-	for x := 0; x < len(args); x++ {
-		par, err := stmt.NewParam("", args[x], 0, Input)
-		if err != nil {
-			return nil, err
+	tracer := stmt.connection.connOption.Tracer
+	tracer.Printf("Query:\n%s", stmt.text)
+	var dataSet *DataSet
+	var err error
+	if len(args) == 0 {
+		dataSet, err = stmt.Query_(nil)
+	} else {
+		var namedArgs = make([]driver.NamedValue, len(args))
+		for x := 0; x < len(args); x++ {
+			namedArgs[x].Value = args[x]
 		}
-		stmt.setParam(x, *par)
+		dataSet, err = stmt.Query_(namedArgs)
 	}
-	stmt.connection.session.ResetBuffer()
-
-	err := stmt.write(stmt.connection.session)
-	if err != nil {
-		return nil, err
-	}
-	dataSet := new(DataSet)
-	err = stmt.read(dataSet)
-	if err != nil {
-		return nil, err
-	}
-	return dataSet, nil
+	return dataSet, err
+	//stmt._noOfRowsToFetch = stmt.connection.connOption.PrefetchRows
+	//stmt._hasMoreRows = true
+	//for x := 0; x < len(args); x++ {
+	//	par, err := stmt.NewParam("", args[x], 0, Input)
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//	stmt.setParam(x, *par)
+	//}
+	//
+	//// if the connection lost
+	//failOver := stmt.connection.connOption.Failover
+	//retryTime := stmt.connection.connOption.RetryTime
+	//if failOver == 0 {
+	//	failOver = 1
+	//}
+	//var dataSet *DataSet
+	//var err error
+	//var reconnect bool
+	//for writeTrials := 0; writeTrials < failOver; writeTrials++ {
+	//	reconnect, err = stmt.connection.reConnect(nil, writeTrials+1)
+	//	if err != nil {
+	//		tracer.Print("Error: ", err)
+	//		if !reconnect {
+	//			return nil, err
+	//		}
+	//		continue
+	//	}
+	//	// reset statement if connection break and reconnect
+	//	if writeTrials > 0 {
+	//		stmt.reset()
+	//	}
+	//	// call query
+	//	dataSet, err = stmt._query()
+	//	if err == nil {
+	//		break
+	//	}
+	//	reconnect, err = stmt.connection.reConnect(err, writeTrials+1)
+	//	if err != nil {
+	//		tracer.Print("Error: ", err)
+	//		if !reconnect {
+	//			return nil, err
+	//		}
+	//	}
+	//	if retryTime > 0 {
+	//		time.Sleep(time.Duration(retryTime) * time.Second)
+	//	}
+	//}
+	//return dataSet, err
+	//return stmt._query()
 }
 
 func (stmt *Stmt) NumInput() int {

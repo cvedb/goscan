@@ -221,6 +221,12 @@ func (p *Page) MustSetUserAgent(req *proto.NetworkSetUserAgentOverride) *Page {
 	return p
 }
 
+// MustSetBlockedURLs is similar to Page.SetBlockedURLs
+func (p *Page) MustSetBlockedURLs(urls ...string) *Page {
+	p.e(p.SetBlockedURLs(urls))
+	return p
+}
+
 // MustNavigate is similar to Page.Navigate
 func (p *Page) MustNavigate(url string) *Page {
 	p.e(p.Navigate(url))
@@ -600,9 +606,9 @@ func (rc *RaceContext) MustDo() *Element {
 	return el
 }
 
-// MustMove is similar to Mouse.Move
-func (m *Mouse) MustMove(x, y float64) *Mouse {
-	m.page.e(m.Move(x, y, 0))
+// MustMoveTo is similar to Mouse.Move
+func (m *Mouse) MustMoveTo(x, y float64) *Mouse {
+	m.page.e(m.MoveTo(proto.NewPoint(x, y)))
 	return m
 }
 
@@ -626,7 +632,7 @@ func (m *Mouse) MustUp(button proto.InputMouseButton) *Mouse {
 
 // MustClick is similar to Mouse.Click
 func (m *Mouse) MustClick(button proto.InputMouseButton) *Mouse {
-	m.page.e(m.Click(button))
+	m.page.e(m.Click(button, 1))
 	return m
 }
 
@@ -726,7 +732,13 @@ func (el *Element) MustHover() *Element {
 
 // MustClick is similar to Element.Click
 func (el *Element) MustClick() *Element {
-	el.e(el.Click(proto.InputMouseButtonLeft))
+	el.e(el.Click(proto.InputMouseButtonLeft, 1))
+	return el
+}
+
+// MustDoubleClick is similar to Element.Click
+func (el *Element) MustDoubleClick() *Element {
+	el.e(el.Click(proto.InputMouseButtonLeft, 2))
 	return el
 }
 
