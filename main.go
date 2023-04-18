@@ -3,13 +3,12 @@ package main
 import (
 	"embed"
 	"fmt"
+	"github.com/w3security/goscan/lib/api"
+	"github.com/w3security/goscan/lib/util"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"runtime"
-
-	"github.com/w3security/goscan/lib/api"
-	"github.com/w3security/goscan/lib/util"
 )
 
 //go:embed config/*
