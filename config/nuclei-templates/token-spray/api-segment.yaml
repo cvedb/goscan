@@ -12,7 +12,7 @@ self-contained: true
 requests:
   - raw:
       - |
-        GET https://platform.segmentapis.com/v1beta/workspaces/codespacespace HTTP/1.1
+        GET https://platform.segmentapis.com/v1beta/workspaces/myworkspace HTTP/1.1
         Host: platform.segmentapis.com
         Authorization: Bearer {{token}}
         Content-Type: application/json
