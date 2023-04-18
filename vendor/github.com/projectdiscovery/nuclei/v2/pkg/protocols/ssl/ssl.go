@@ -1,25 +1,23 @@
 package ssl
 
 import (
-	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
-	"net/url"
-	"strings"
 	"time"
 
+	"github.com/fatih/structs"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 
-	"github.com/projectdiscovery/cryptoutil"
 	"github.com/projectdiscovery/fastdialer/fastdialer"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v2/pkg/model"
 	"github.com/projectdiscovery/nuclei/v2/pkg/operators"
 	"github.com/projectdiscovery/nuclei/v2/pkg/operators/extractors"
 	"github.com/projectdiscovery/nuclei/v2/pkg/operators/matchers"
 	"github.com/projectdiscovery/nuclei/v2/pkg/output"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols"
+	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/contextargs"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/expressions"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/generators"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/helpers/eventcreator"
@@ -27,19 +25,26 @@ import (
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/common/utils/vardump"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/dns"
 	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/network/networkclientpool"
+	"github.com/projectdiscovery/nuclei/v2/pkg/protocols/utils"
 	templateTypes "github.com/projectdiscovery/nuclei/v2/pkg/templates/types"
 	"github.com/projectdiscovery/nuclei/v2/pkg/types"
-	ztls "github.com/zmap/zcrypto/tls"
+	"github.com/projectdiscovery/tlsx/pkg/tlsx"
+	"github.com/projectdiscovery/tlsx/pkg/tlsx/clients"
+	"github.com/projectdiscovery/tlsx/pkg/tlsx/openssl"
+	errorutil "github.com/projectdiscovery/utils/errors"
+	stringsutil "github.com/projectdiscovery/utils/strings"
+	urlutil "github.com/projectdiscovery/utils/url"
 )
 
 // Request is a request for the SSL protocol
 type Request struct {
 	// Operators for the current request go here.
-	operators.Operators `yaml:",inline,omitempty"`
-	CompiledOperators   *operators.Operators `yaml:"-"`
+	operators.Operators `yaml:",inline,omitempty" json:",inline,omitempty"`
+	CompiledOperators   *operators.Operators `yaml:"-" json:"-"`
+
 	// description: |
 	//   Address contains address for the request
-	Address string `yaml:"address,omitempty" jsonschema:"title=address for the ssl request,description=Address contains address for the request"`
+	Address string `yaml:"address,omitempty" json:"address,omitempty" jsonschema:"title=address for the ssl request,description=Address contains address for the request"`
 	// description: |
 	//   Minimum tls version - auto if not specified.
 	// values:
@@ -48,7 +53,7 @@ type Request struct {
 	//   - "tls11"
 	//   - "tls12"
 	//   - "tls13"
-	MinVersion string `yaml:"min_version,omitempty" jsonschema:"title=TLS version,description=Minimum tls version - automatic if not specified.,enum=sslv3,enum=tls10,enum=tls11,enum=tls12,enum=tls13"`
+	MinVersion string `yaml:"min_version,omitempty" json:"min_version,omitempty" jsonschema:"title=Min. TLS version,description=Minimum tls version - automatic if not specified.,enum=sslv3,enum=tls10,enum=tls11,enum=tls12,enum=tls13"`
 	// description: |
 	//   Max tls version - auto if not specified.
 	// values:
@@ -57,15 +62,34 @@ type Request struct {
 	//   - "tls11"
 	//   - "tls12"
 	//   - "tls13"
-	MaxVersion string `yaml:"max_version,omitempty" jsonschema:"title=TLS version,description=Max tls version - automatic if not specified.,enum=sslv3,enum=tls10,enum=tls11,enum=tls12,enum=tls13"`
+	MaxVersion string `yaml:"max_version,omitempty" json:"max_version,omitempty" jsonschema:"title=Max. TLS version,description=Max tls version - automatic if not specified.,enum=sslv3,enum=tls10,enum=tls11,enum=tls12,enum=tls13"`
 	// description: |
 	//   Client Cipher Suites  - auto if not specified.
-	CiperSuites  []string `yaml:"cipher_suites,omitempty"`
-	cipherSuites []uint16
+	CipherSuites []string `yaml:"cipher_suites,omitempty" json:"cipher_suites,omitempty"`
+	// description: |
+	//   Tls Scan Mode - auto if not specified
+	// values:
+	//   - "ctls"
+	//   - "ztls"
+	//   - "auto"
+	//	 - "openssl" # reverts to "auto" is openssl is not installed
+	ScanMode string `yaml:"scan_mode,omitempty" json:"scan_mode,omitempty" jsonschema:"title=Scan Mode,description=Scan Mode - auto if not specified.,enum=ctls,enum=ztls,enum=auto"`
 
 	// cache any variables that may be needed for operation.
 	dialer  *fastdialer.Dialer
+	tlsx    *tlsx.Service
 	options *protocols.ExecuterOptions
+}
+
+// CanCluster returns true if the request can be clustered.
+func (request *Request) CanCluster(other *Request) bool {
+	if len(request.CipherSuites) > 0 || request.MinVersion != "" || request.MaxVersion != "" {
+		return false
+	}
+	if request.Address != other.Address || request.ScanMode != other.ScanMode {
+		return false
+	}
+	return true
 }
 
 // Compile compiles the request generators preparing any requests possible.
@@ -74,29 +98,65 @@ func (request *Request) Compile(options *protocols.ExecuterOptions) error {
 
 	client, err := networkclientpool.Get(options.Options, &networkclientpool.Configuration{})
 	if err != nil {
-		return errors.Wrap(err, "could not get network client")
+		return errorutil.NewWithTag("ssl", "could not get network client").Wrap(err)
 	}
 	request.dialer = client
+	switch {
+	//validate scanmode
+	case request.ScanMode == "":
+		request.ScanMode = "auto"
 
-	if request.options.Options.ZTLS {
-		request.cipherSuites, err = toZTLSCiphers(request.CiperSuites)
-	} else {
-		request.cipherSuites, err = toTLSCiphers(request.CiperSuites)
+	case !stringsutil.EqualFoldAny(request.ScanMode, "auto", "openssl", "ztls", "ctls"):
+		return errorutil.NewWithTag(request.TemplateID, "template %v does not contain valid scan-mode", request.TemplateID)
+
+	case request.ScanMode == "openssl" && !openssl.IsAvailable():
+		// if openssl is not installed instead of failing "auto" scanmode is used
+		request.ScanMode = "auto"
+
+	case options.Options.ZTLS && request.ScanMode == "ctls":
+		// only override if scanmode in template is "ctls" since auto internally uses ztls as fallback
+		request.ScanMode = "ztls"
 	}
+
+	tlsxOptions := &clients.Options{
+		AllCiphers:        true,
+		ScanMode:          request.ScanMode,
+		Expired:           true,
+		SelfSigned:        true,
+		Revoked:           true,
+		MisMatched:        true,
+		MinVersion:        request.MinVersion,
+		MaxVersion:        request.MaxVersion,
+		Ciphers:           request.CipherSuites,
+		WildcardCertCheck: true,
+		Retries:           request.options.Options.Retries,
+		Timeout:           request.options.Options.Timeout,
+		Fastdialer:        client,
+		ClientHello:       true,
+		ServerHello:       true,
+	}
+
+	tlsxService, err := tlsx.New(tlsxOptions)
 	if err != nil {
-		return errors.Wrap(err, "invalid ciphersuites specified")
+		return errorutil.NewWithTag(request.TemplateID, "could not create tlsx service")
 	}
+	request.tlsx = tlsxService
 
 	if len(request.Matchers) > 0 || len(request.Extractors) > 0 {
 		compiled := &request.Operators
 		compiled.ExcludeMatchers = options.ExcludeMatchers
 		compiled.TemplateID = options.TemplateID
 		if err := compiled.Compile(); err != nil {
-			return errors.Wrap(err, "could not compile operators")
+			return errorutil.NewWithTag(request.TemplateID, "could not compile operators got %v", err)
 		}
 		request.CompiledOperators = compiled
 	}
 	return nil
+}
+
+// Options returns executer options for http request
+func (r *Request) Options() *protocols.ExecuterOptions {
+	return r.options
 }
 
 // Requests returns the total number of requests the rule will perform
@@ -110,19 +170,20 @@ func (request *Request) GetID() string {
 }
 
 // ExecuteWithResults executes the protocol requests and returns results instead of writing them.
-func (request *Request) ExecuteWithResults(input string, dynamicValues, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
-	address, err := getAddress(input)
+func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicValues, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
+	hostPort, err := getAddress(input.MetaInput.Input)
 	if err != nil {
-		return nil
+		return err
 	}
-	hostname, port, _ := net.SplitHostPort(address)
+	hostname, port, _ := net.SplitHostPort(hostPort)
 
 	requestOptions := request.options
-	payloadValues := make(map[string]interface{})
+	payloadValues := generators.BuildPayloadFromOptions(request.options.Options)
 	for k, v := range dynamicValues {
 		payloadValues[k] = v
 	}
-	payloadValues["Hostname"] = address
+
+	payloadValues["Hostname"] = hostPort
 	payloadValues["Host"] = hostname
 	payloadValues["Port"] = port
 
@@ -131,138 +192,96 @@ func (request *Request) ExecuteWithResults(input string, dynamicValues, previous
 	variablesMap := request.options.Variables.Evaluate(values)
 	payloadValues = generators.MergeMaps(variablesMap, payloadValues)
 
-	if request.options.Options.Debug || request.options.Options.DebugRequests {
+	if vardump.EnableVarDump {
 		gologger.Debug().Msgf("Protocol request variables: \n%s\n", vardump.DumpVariables(payloadValues))
 	}
 
 	finalAddress, dataErr := expressions.EvaluateByte([]byte(request.Address), payloadValues)
 	if dataErr != nil {
-		requestOptions.Output.Request(requestOptions.TemplateID, input, request.Type().String(), dataErr)
+		requestOptions.Output.Request(requestOptions.TemplateID, input.MetaInput.Input, request.Type().String(), dataErr)
 		requestOptions.Progress.IncrementFailedRequestsBy(1)
 		return errors.Wrap(dataErr, "could not evaluate template expressions")
 	}
-
 	addressToDial := string(finalAddress)
-	var minVersion, maxVersion uint16
-	if request.MinVersion != "" {
-		version, err := toVersion(request.MinVersion)
-		if err != nil {
-			return err
-		}
-		minVersion = version
-	}
-	if request.MaxVersion != "" {
-		version, err := toVersion(request.MaxVersion)
-		if err != nil {
-			return err
-		}
-		maxVersion = version
-	}
-	var conn net.Conn
-
-	if request.options.Options.ZTLS {
-		zconfig := &ztls.Config{InsecureSkipVerify: true, ServerName: hostname}
-		if minVersion > 0 {
-			zconfig.MinVersion = minVersion
-		}
-		if maxVersion > 0 {
-			zconfig.MaxVersion = maxVersion
-		}
-		if len(request.cipherSuites) > 0 {
-			zconfig.CipherSuites = request.cipherSuites
-		}
-		conn, err = request.dialer.DialZTLSWithConfig(context.Background(), "tcp", addressToDial, zconfig)
-	} else {
-		config := &tls.Config{InsecureSkipVerify: true, ServerName: hostname}
-		if minVersion > 0 {
-			config.MinVersion = minVersion
-		}
-		if maxVersion > 0 {
-			config.MaxVersion = maxVersion
-		}
-		if len(request.cipherSuites) > 0 {
-			config.CipherSuites = request.cipherSuites
-		}
-		conn, err = request.dialer.DialTLSWithConfig(context.Background(), "tcp", addressToDial, config)
-	}
-
+	host, port, err := net.SplitHostPort(addressToDial)
 	if err != nil {
-		requestOptions.Output.Request(requestOptions.TemplateID, input, request.Type().String(), err)
-		requestOptions.Progress.IncrementFailedRequestsBy(1)
-		return errors.Wrap(err, "could not connect to server")
+		return errorutil.NewWithErr(err).Msgf("could not split input host port")
 	}
-	defer conn.Close()
-	_ = conn.SetReadDeadline(time.Now().Add(time.Duration(requestOptions.Options.Timeout) * time.Second))
 
-	requestOptions.Output.Request(requestOptions.TemplateID, address, request.Type().String(), err)
-	gologger.Verbose().Msgf("Sent SSL request to %s", address)
+	var hostIp string
+	if input.MetaInput.CustomIP != "" {
+		hostIp = input.MetaInput.CustomIP
+	} else {
+		hostIp = host
+	}
+
+	response, err := request.tlsx.Connect(host, hostIp, port)
+	if err != nil {
+		requestOptions.Output.Request(requestOptions.TemplateID, input.MetaInput.Input, request.Type().String(), err)
+		requestOptions.Progress.IncrementFailedRequestsBy(1)
+		return errorutil.NewWithTag(request.TemplateID, "could not connect to server").Wrap(err)
+	}
+
+	requestOptions.Output.Request(requestOptions.TemplateID, hostPort, request.Type().String(), err)
+	gologger.Verbose().Msgf("Sent SSL request to %s", hostPort)
 
 	if requestOptions.Options.Debug || requestOptions.Options.DebugRequests || requestOptions.Options.StoreResponse {
-		msg := fmt.Sprintf("[%s] Dumped SSL request for %s", requestOptions.TemplateID, input)
+		msg := fmt.Sprintf("[%s] Dumped SSL request for %s", requestOptions.TemplateID, input.MetaInput.Input)
 		if requestOptions.Options.Debug || requestOptions.Options.DebugRequests {
-			gologger.Debug().Str("address", input).Msg(msg)
+			gologger.Debug().Str("address", input.MetaInput.Input).Msg(msg)
 		}
 		if requestOptions.Options.StoreResponse {
-			request.options.Output.WriteStoreDebugData(input, request.options.TemplateID, request.Type().String(), msg)
+			request.options.Output.WriteStoreDebugData(input.MetaInput.Input, request.options.TemplateID, request.Type().String(), msg)
 		}
 	}
 
-	var (
-		tlsData      interface{}
-		certNotAfter int64
-	)
-	if request.options.Options.ZTLS {
-		connTLS, ok := conn.(*ztls.Conn)
-		if !ok {
-			return nil
-		}
-		state := connTLS.ConnectionState()
-		if len(state.PeerCertificates) == 0 {
-			return nil
-		}
-		tlsData = cryptoutil.ZTLSGrab(connTLS)
-		cert := connTLS.ConnectionState().PeerCertificates[0]
-		certNotAfter = cert.NotAfter.Unix()
-	} else {
-		connTLS, ok := conn.(*tls.Conn)
-		if !ok {
-			return nil
-		}
-		state := connTLS.ConnectionState()
-		if len(state.PeerCertificates) == 0 {
-			return nil
-		}
-		tlsData = cryptoutil.TLSGrab(&state)
-		cert := connTLS.ConnectionState().PeerCertificates[0]
-		certNotAfter = cert.NotAfter.Unix()
-	}
-	jsonData, _ := jsoniter.Marshal(tlsData)
+	jsonData, _ := jsoniter.Marshal(response)
 	jsonDataString := string(jsonData)
 
 	data := make(map[string]interface{})
-
+	for k, v := range payloadValues {
+		data[k] = v
+	}
 	data["type"] = request.Type().String()
 	data["response"] = jsonDataString
-	data["host"] = input
+	data["host"] = input.MetaInput.Input
 	data["matched"] = addressToDial
-	data["not_after"] = float64(certNotAfter)
-	data["ip"] = request.dialer.GetDialedIP(hostname)
+	if input.MetaInput.CustomIP != "" {
+		data["ip"] = hostIp
+	} else {
+		data["ip"] = request.dialer.GetDialedIP(hostname)
+	}
 	data["template-path"] = requestOptions.TemplatePath
 	data["template-id"] = requestOptions.TemplateID
 	data["template-info"] = requestOptions.TemplateInfo
-	for k, v := range payloadValues {
-		data[k] = v
+
+	// Convert response to key value pairs and first cert chain item as well
+	responseParsed := structs.New(response)
+	for _, f := range responseParsed.Fields() {
+		tag := utils.CleanStructFieldJSONTag(f.Tag("json"))
+		if tag == "" || f.IsZero() {
+			continue
+		}
+		data[tag] = f.Value()
+	}
+	responseParsed = structs.New(response.CertificateResponse)
+	for _, f := range responseParsed.Fields() {
+		tag := utils.CleanStructFieldJSONTag(f.Tag("json"))
+		if tag == "" || f.IsZero() {
+			continue
+		}
+		data[tag] = f.Value()
 	}
 
 	event := eventcreator.CreateEvent(request, data, requestOptions.Options.Debug || requestOptions.Options.DebugResponse)
 	if requestOptions.Options.Debug || requestOptions.Options.DebugResponse || requestOptions.Options.StoreResponse {
-		msg := fmt.Sprintf("[%s] Dumped SSL response for %s", requestOptions.TemplateID, input)
+		msg := fmt.Sprintf("[%s] Dumped SSL response for %s", requestOptions.TemplateID, input.MetaInput.Input)
 		if requestOptions.Options.Debug || requestOptions.Options.DebugResponse {
 			gologger.Debug().Msg(msg)
 			gologger.Print().Msgf("%s", responsehighlighter.Highlight(event.OperatorsResult, jsonDataString, requestOptions.Options.NoColor, false))
 		}
 		if requestOptions.Options.StoreResponse {
-			request.options.Output.WriteStoreDebugData(input, request.options.TemplateID, request.Type().String(), fmt.Sprintf("%s\n%s", msg, jsonDataString))
+			request.options.Output.WriteStoreDebugData(input.MetaInput.Input, request.options.TemplateID, request.Type().String(), fmt.Sprintf("%s\n%s", msg, jsonDataString))
 		}
 	}
 	callback(event)
@@ -282,21 +301,15 @@ var RequestPartDefinitions = map[string]string{
 
 // getAddress returns the address of the host to make request to
 func getAddress(toTest string) (string, error) {
-	if strings.Contains(toTest, "://") {
-		parsed, err := url.Parse(toTest)
-		if err != nil {
-			return "", err
-		}
-		_, port, _ := net.SplitHostPort(parsed.Host)
-
-		if strings.ToLower(parsed.Scheme) == "https" && port == "" {
-			toTest = net.JoinHostPort(parsed.Host, "443")
-		} else {
-			toTest = parsed.Host
-		}
+	urlx, err := urlutil.Parse(toTest)
+	if err != nil {
+		// use given input instead of url parsing failure
 		return toTest, nil
 	}
-	return toTest, nil
+	if urlx.Port() == "" {
+		urlx.UpdatePort("443")
+	}
+	return urlx.Host, nil
 }
 
 // Match performs matching operation for a matcher on model and returns:
@@ -328,12 +341,12 @@ func (request *Request) Type() templateTypes.ProtocolType {
 
 func (request *Request) MakeResultEventItem(wrapped *output.InternalWrappedEvent) *output.ResultEvent {
 	data := &output.ResultEvent{
-		TemplateID:       types.ToString(request.options.TemplateID),
-		TemplatePath:     types.ToString(request.options.TemplatePath),
-		Info:             request.options.TemplateInfo,
+		TemplateID:       types.ToString(wrapped.InternalEvent["template-id"]),
+		TemplatePath:     types.ToString(wrapped.InternalEvent["template-path"]),
+		Info:             wrapped.InternalEvent["template-info"].(model.Info),
 		Type:             types.ToString(wrapped.InternalEvent["type"]),
 		Host:             types.ToString(wrapped.InternalEvent["host"]),
-		Matched:          types.ToString(wrapped.InternalEvent["host"]),
+		Matched:          types.ToString(wrapped.InternalEvent["matched"]),
 		Metadata:         wrapped.OperatorsResult.PayloadValues,
 		ExtractedResults: wrapped.OperatorsResult.OutputExtracts,
 		Timestamp:        time.Now(),

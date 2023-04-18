@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"os"
+	"io/ioutil"
 	"strings"
 	"time"
 	"unsafe"
@@ -63,7 +63,7 @@ type Credential struct {
 // LoadCCache loads a credential cache file into a CCache type.
 func LoadCCache(cpath string) (*CCache, error) {
 	c := new(CCache)
-	b, err := os.ReadFile(cpath)
+	b, err := ioutil.ReadFile(cpath)
 	if err != nil {
 		return c, err
 	}

@@ -105,10 +105,10 @@ type EmulationUserAgentBrandVersion struct {
 // Missing optional values will be filled in by the target with what it would normally use.
 type EmulationUserAgentMetadata struct {
 
-	// Brands (optional) ...
+	// Brands (optional) Brands appearing in Sec-CH-UA.
 	Brands []*EmulationUserAgentBrandVersion `json:"brands,omitempty"`
 
-	// FullVersionList (optional) ...
+	// FullVersionList (optional) Brands appearing in Sec-CH-UA-Full-Version-List.
 	FullVersionList []*EmulationUserAgentBrandVersion `json:"fullVersionList,omitempty"`
 
 	// FullVersion (deprecated) (optional) ...
@@ -142,9 +142,6 @@ type EmulationDisabledImageType string
 const (
 	// EmulationDisabledImageTypeAvif enum const
 	EmulationDisabledImageTypeAvif EmulationDisabledImageType = "avif"
-
-	// EmulationDisabledImageTypeJxl enum const
-	EmulationDisabledImageTypeJxl EmulationDisabledImageType = "jxl"
 
 	// EmulationDisabledImageTypeWebp enum const
 	EmulationDisabledImageTypeWebp EmulationDisabledImageType = "webp"

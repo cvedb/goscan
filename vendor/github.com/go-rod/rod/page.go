@@ -153,6 +153,16 @@ func (p *Page) SetUserAgent(req *proto.NetworkSetUserAgentOverride) error {
 	return req.Call(p)
 }
 
+// SetBlockedURLs For some requests that do not want to be triggered, such as some dangerous operations, delete, quit logout, etc.
+// Wildcards ('*') are allowed, such as ["*/api/logout/*","delete"].
+// NOTE: if you set empty pattern "", it will block all requests.
+func (p *Page) SetBlockedURLs(urls []string) error {
+	if len(urls) == 0 {
+		return nil
+	}
+	return proto.NetworkSetBlockedURLs{Urls: urls}.Call(p)
+}
+
 // Navigate to the url. If the url is empty, "about:blank" will be used.
 // It will return immediately after the server responds the http header.
 func (p *Page) Navigate(url string) error {
@@ -301,7 +311,7 @@ func (p *Page) Close() error {
 	for {
 		err := proto.PageClose{}.Call(p)
 		if errors.Is(err, cdp.ErrNotAttachedToActivePage) {
-			// TODO: I don't know why chromium doesn't allow to close a page while it's navigating.
+			// TODO: I don't know why chromium doesn't allow us to close a page while it's navigating.
 			// Looks like a bug in chromium.
 			utils.Sleep(0.1)
 			continue
@@ -390,11 +400,11 @@ func (p *Page) HandleFileDialog() (func([]string) error, error) {
 }
 
 // Screenshot captures the screenshot of current page.
-func (p *Page) Screenshot(fullpage bool, req *proto.PageCaptureScreenshot) ([]byte, error) {
+func (p *Page) Screenshot(fullPage bool, req *proto.PageCaptureScreenshot) ([]byte, error) {
 	if req == nil {
 		req = &proto.PageCaptureScreenshot{}
 	}
-	if fullpage {
+	if fullPage {
 		metrics, err := proto.PageGetLayoutMetrics{}.Call(p)
 		if err != nil {
 			return nil, err
@@ -536,15 +546,15 @@ func (p *Page) WaitRequestIdle(d time.Duration, includes, excludes []string) fun
 
 	p, cancel := p.WithCancel()
 	match := genRegMatcher(includes, excludes)
-	waitlist := map[proto.NetworkRequestID]string{}
+	waitList := map[proto.NetworkRequestID]string{}
 	idleCounter := utils.NewIdleCounter(d)
 	update := p.tryTraceReq(includes, excludes)
 	update(nil)
 
 	checkDone := func(id proto.NetworkRequestID) {
-		if _, has := waitlist[id]; has {
-			delete(waitlist, id)
-			update(waitlist)
+		if _, has := waitList[id]; has {
+			delete(waitList, id)
+			update(waitList)
 			idleCounter.Done()
 		}
 	}
@@ -553,9 +563,9 @@ func (p *Page) WaitRequestIdle(d time.Duration, includes, excludes []string) fun
 		if match(sent.Request.URL) {
 			// Redirect will send multiple NetworkRequestWillBeSent events with the same RequestID,
 			// we should filter them out.
-			if _, has := waitlist[sent.RequestID]; !has {
-				waitlist[sent.RequestID] = sent.Request.URL
-				update(waitlist)
+			if _, has := waitList[sent.RequestID]; !has {
+				waitList[sent.RequestID] = sent.Request.URL
+				update(waitList)
 				idleCounter.Add()
 			}
 		}

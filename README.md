@@ -1,4 +1,4 @@
-[![Tweet](https://img.shields.io/twitter/url/http/Hktalent3135773.svg?style=social)](https://twitter.com/intent/follow?screen_name=Hktalent3135773) [![Follow on Twitter](https://img.shields.io/twitter/follow/Hktalent3135773.svg?style=social&label=Follow)](https://twitter.com/intent/follow?screen_name=Hktalent3135773) [![GitHub Followers](https://img.shields.io/github/followers/hktalent.svg?style=social&label=Follow)](https://github.com/hktalent/)
+[![Tweet](https://img.shields.io/twitter/url/http/w3security.svg?style=social)](https://twitter.com/intent/follow?screen_name=w3security) [![Follow on Twitter](https://img.shields.io/twitter/follow/w3security.svg?style=social&label=Follow)](https://twitter.com/intent/follow?screen_name=w3security) [![GitHub Followers](https://img.shields.io/github/followers/w3security.svg?style=social&label=Follow)](https://github.com/w3security/)
 <p align="center">
    <a href="/README_CN.md">README_中文</a> •
    <a href="/static/Installation.md">Compile/Install/Run</a> •
@@ -107,13 +107,13 @@ noScan=true ./goscan -l list.txt -v
   * 1. When the IPs of multiple domain names in the list are the same, merge port scans to improve efficiency
   * 2. Intelligently handle http abnormal pages, and fingerprint calculation and learning
 - Automated supply chain identification, analysis and scanning
-- Link python3 <a href=https://github.com/hktalent/log4j-scan>log4j-scan</a>
+- Link python3 <a href=https://github.com/w3security/log4j.scan>log4j.scan</a>
   * This version blocks the bug that your target information is passed to the DNS Log Server to avoid exposing vulnerabilities
   * Added the ability to send results to Elasticsearch for batch, touch typing
   * There will be time in the future to implement the golang version
     how to use?
 ```bash
-mkdir ~/MyWork/;cd ~/MyWork/;git clone https://github.com/hktalent/log4j-scan
+mkdir ~/MyWork/;cd ~/MyWork/;git clone https://github.com/w3security/log4j.scan
 ````
 - Intelligently identify honeypots and skip Targets. This function is disabled by default. You can set EnableHoneyportDetection=true to enable
 - Highly customizable: allow to define your own dictionary through config/config.json configuration, or control more details, including but not limited to: nuclei, httpx, naabu, etc.
@@ -136,7 +136,7 @@ goscan -h
 - 1. Start Elasticsearch, of course you can use the traditional way to output, results
 ```bash
 mkdir -p logs data
-docker run --restart=always --ulimit nofile=65536:65536 -p 9200:9200 -p 9300:9300 -d --name es -v $PWD/logs:/usr/share/elasticsearch/logs -v $PWD /config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml -v $PWD/config/jvm.options:/usr/share/elasticsearch/config/jvm.options -v $PWD/data:/ usr/share/elasticsearch/data hktalent/elasticsearch:7.16.2
+docker run --restart=always --ulimit nofile=65536:65536 -p 9200:9200 -p 9300:9300 -d --name es -v $PWD/logs:/usr/share/elasticsearch/logs -v $PWD /config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml -v $PWD/config/jvm.options:/usr/share/elasticsearch/config/jvm.options -v $PWD/data:/ usr/share/elasticsearch/data w3security/elasticsearch:7.16.2
 # Initialize the es index, the result structure of each tool is different, and it is stored separately
 ./config/initEs.sh
 
@@ -192,5 +192,5 @@ more see: <a href=https://github.com/w3security/goscan/discussions>discussions</
 
 ## 💖Star
 [![Stargazers over time](https://starchart.cc/w3security/goscan.svg)](https://starchart.cc/w3security/goscan)
-(https://www.paypal.me/pwned2019) **miracletalent@gmail.com**|<img width=166 src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/BTC.png>|<img width=166 src=https://raw.githubusercontent.com/hktalent/myhktools/main/md/BCH.jpg>|
+(https://www.paypal.me/pwned2019) **miracletalent@gmail.com**|<img width=166 src=https://raw.githubusercontent.com/w3security/myhktools/main/md/BTC.png>|<img width=166 src=https://raw.githubusercontent.com/w3security/myhktools/main/md/BCH.jpg>|
 

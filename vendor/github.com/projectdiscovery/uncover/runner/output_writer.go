@@ -2,10 +2,12 @@ package runner
 
 import (
 	"crypto/sha1"
+	"fmt"
 	"io"
 	"sync"
 
 	lru "github.com/hashicorp/golang-lru"
+	"github.com/projectdiscovery/uncover/uncover"
 )
 
 type OutputWriter struct {
@@ -26,23 +28,41 @@ func (o *OutputWriter) AddWriters(writers ...io.Writer) {
 	o.writers = append(o.writers, writers...)
 }
 
+// Write writes the data taken as input using only
+// the writer(s) with that name.
 func (o *OutputWriter) Write(data []byte) {
 	o.Lock()
 	defer o.Unlock()
 
-	// skip duplicates in the last 2048 printed items
-	itemHash := sha1.Sum(data)
-	if o.cache.Contains(itemHash) {
-		return
-	}
-	o.cache.Add(itemHash, struct{}{})
-
-	for _, writer := range o.writers {
-		_, _ = writer.Write(data)
-		_, _ = writer.Write([]byte("\n"))
+	for _, w := range o.writers {
+		_, _ = w.Write(data)
+		_, _ = w.Write([]byte("\n"))
 	}
 }
 
+func (o *OutputWriter) findDuplicate(data string) bool {
+	// check if we've already printed this data
+	itemHash := sha1.Sum([]byte(data))
+	if o.cache.Contains(itemHash) {
+		return true
+	}
+	o.cache.Add(itemHash, struct{}{})
+	return false
+}
+
+// WriteString writes the string taken as input using only
 func (o *OutputWriter) WriteString(data string) {
+	if o.findDuplicate(data) {
+		return
+	}
 	o.Write([]byte(data))
+}
+
+// WriteJsonData writes the result taken as input in JSON format
+func (o *OutputWriter) WriteJsonData(data uncover.Result) {
+	if o.findDuplicate(fmt.Sprintf("%s:%d", data.IP, data.Port)) {
+		return
+	}
+	o.Write([]byte(data.JSON()))
+
 }

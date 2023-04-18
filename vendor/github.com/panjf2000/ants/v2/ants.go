@@ -48,9 +48,6 @@ const (
 )
 
 var (
-	//
-	//--------------------------Error types for the Ants API------------------------------
-
 	// ErrLackPoolFunc will be returned when invokers don't provide function for pool.
 	ErrLackPoolFunc = errors.New("must provide function for pool")
 
@@ -69,8 +66,6 @@ var (
 	// ErrTimeout will be returned after the operations timed out.
 	ErrTimeout = errors.New("operation timed out")
 
-	//---------------------------------------------------------------------------
-
 	// workerChanCap determines whether the channel of a worker should be a buffered channel
 	// to get the best performance. Inspired by fasthttp at
 	// https://github.com/valyala/fasthttp/blob/master/workerpool.go#L139
@@ -87,11 +82,13 @@ var (
 		return 1
 	}()
 
-	defaultLogger = Logger(log.New(os.Stderr, "", log.LstdFlags))
+	defaultLogger = Logger(log.New(os.Stderr, "[ants]: ", log.LstdFlags|log.Lmsgprefix|log.Lmicroseconds))
 
 	// Init an instance pool when importing ants.
 	defaultAntsPool, _ = NewPool(DefaultAntsPoolSize)
 )
+
+const nowTimeUpdateInterval = 500 * time.Millisecond
 
 // Logger is used for logging formatted messages.
 type Logger interface {

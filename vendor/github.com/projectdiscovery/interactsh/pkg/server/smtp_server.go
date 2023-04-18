@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"git.mills.io/prologic/smtpd"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/projectdiscovery/gologger"
-	"github.com/projectdiscovery/stringsutil"
+	stringsutil "github.com/projectdiscovery/utils/strings"
 )
 
 // SMTPServer is a smtp server instance that listens both
@@ -83,6 +84,8 @@ func (h *SMTPServer) ListenAndServe(tlsConfig *tls.Config, smtpAlive, smtpsAlive
 
 // defaultHandler is a handler for default collaborator requests
 func (h *SMTPServer) defaultHandler(remoteAddr net.Addr, from string, to []string, data []byte) error {
+	atomic.AddUint64(&h.options.Stats.Smtp, 1)
+
 	var uniqueID, fullID string
 
 	dataString := string(data)
@@ -95,7 +98,7 @@ func (h *SMTPServer) defaultHandler(remoteAddr net.Addr, from string, to []strin
 				if stringsutil.HasSuffixI(addr, domain) {
 					ID := domain
 					host, _, _ := net.SplitHostPort(remoteAddr.String())
-					address := addr[strings.Index(addr, "@"):]
+					address := addr[strings.LastIndex(addr, "@"):]
 					interaction := &Interaction{
 						Protocol:      "smtp",
 						UniqueID:      address,
@@ -121,7 +124,7 @@ func (h *SMTPServer) defaultHandler(remoteAddr net.Addr, from string, to []strin
 
 	for _, addr := range to {
 		if len(addr) > h.options.GetIdLength() && strings.Contains(addr, "@") {
-			parts := strings.Split(addr[strings.Index(addr, "@")+1:], ".")
+			parts := strings.Split(addr[strings.LastIndex(addr, "@")+1:], ".")
 			for i, part := range parts {
 				if h.options.isCorrelationID(part) {
 					uniqueID = part

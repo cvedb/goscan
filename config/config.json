@@ -1,7 +1,7 @@
 {
   "ScanPoolSize":5000,
-  "JndiAddress": "https://rcejndi.51pwn.com",
-  "CeyeDomain": "goscan.51pwn.com",
+  "JndiAddress": "https://w3security.github.io",
+  "CeyeDomain": "w3security.github.io",
   "CacheName": ".DbCache",
   "autoRmCache": "true",
   "ssh_username": "pkg/hydra/dicts/ssh_user.txt",

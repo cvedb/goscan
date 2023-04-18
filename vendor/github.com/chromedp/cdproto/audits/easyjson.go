@@ -1465,6 +1465,10 @@ func easyjsonC5a4559bDecodeGithubComChromedpCdprotoAudits12(in *jlexer.Lexer, ou
 			(out.ErrorType).UnmarshalEasyJSON(in)
 		case "frameId":
 			(out.FrameID).UnmarshalEasyJSON(in)
+		case "violatingNodeId":
+			(out.ViolatingNodeID).UnmarshalEasyJSON(in)
+		case "violatingNodeAttribute":
+			out.ViolatingNodeAttribute = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1488,6 +1492,16 @@ func easyjsonC5a4559bEncodeGithubComChromedpCdprotoAudits12(out *jwriter.Writer,
 		const prefix string = ",\"frameId\":"
 		out.RawString(prefix)
 		out.String(string(in.FrameID))
+	}
+	if in.ViolatingNodeID != 0 {
+		const prefix string = ",\"violatingNodeId\":"
+		out.RawString(prefix)
+		out.Int64(int64(in.ViolatingNodeID))
+	}
+	if in.ViolatingNodeAttribute != "" {
+		const prefix string = ",\"violatingNodeAttribute\":"
+		out.RawString(prefix)
+		out.String(string(in.ViolatingNodeAttribute))
 	}
 	out.RawByte('}')
 }
@@ -1817,7 +1831,7 @@ func easyjsonC5a4559bDecodeGithubComChromedpCdprotoAudits17(in *jlexer.Lexer, ou
 				(*out.SourceCodeLocation).UnmarshalEasyJSON(in)
 			}
 		case "type":
-			(out.Type).UnmarshalEasyJSON(in)
+			out.Type = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1855,7 +1869,7 @@ func easyjsonC5a4559bEncodeGithubComChromedpCdprotoAudits17(out *jwriter.Writer,
 	{
 		const prefix string = ",\"type\":"
 		out.RawString(prefix)
-		(in.Type).MarshalEasyJSON(out)
+		out.String(string(in.Type))
 	}
 	out.RawByte('}')
 }

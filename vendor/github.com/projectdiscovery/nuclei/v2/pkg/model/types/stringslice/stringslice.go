@@ -16,6 +16,10 @@ type StringSlice struct {
 	Value interface{}
 }
 
+func New(value interface{}) StringSlice {
+	return StringSlice{Value: value}
+}
+
 func (stringSlice StringSlice) JSONSchemaType() *jsonschema.Type {
 	gotType := &jsonschema.Type{
 		OneOf: []*jsonschema.Type{{Type: "string"}, {Type: "array"}},
@@ -51,12 +55,15 @@ func (stringSlice *StringSlice) UnmarshalYAML(unmarshal func(interface{}) error)
 	}
 
 	result := make([]string, 0, len(marshalledSlice))
-	//nolint:gosimple,nolintlint //cannot be replaced with result = append(result, slices...) because the values are being normalized
 	for _, value := range marshalledSlice {
-		result = append(result, strings.ToLower(strings.TrimSpace(value))) // TODO do we need to introduce RawStringSlice and/or NormalizedStringSlices?
+		result = append(result, stringSlice.Normalize(value))
 	}
 	stringSlice.Value = result
 	return nil
+}
+
+func (stringSlice StringSlice) Normalize(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
 }
 
 func (stringSlice StringSlice) MarshalYAML() (interface{}, error) {
@@ -65,6 +72,36 @@ func (stringSlice StringSlice) MarshalYAML() (interface{}, error) {
 
 func (stringSlice StringSlice) MarshalJSON() ([]byte, error) {
 	return json.Marshal(stringSlice.Value)
+}
+
+func (stringSlice *StringSlice) UnmarshalJSON(data []byte) error {
+	var marshalledValueAsString string
+	var marshalledValuesAsSlice []string
+
+	sliceMarshalError := json.Unmarshal(data, &marshalledValuesAsSlice)
+	if sliceMarshalError != nil {
+		stringMarshalError := json.Unmarshal(data, &marshalledValueAsString)
+		if stringMarshalError != nil {
+			return stringMarshalError
+		}
+	}
+
+	var result []string
+	switch {
+	case len(marshalledValuesAsSlice) > 0:
+		result = marshalledValuesAsSlice
+	case !utils.IsBlank(marshalledValueAsString):
+		result = strings.Split(marshalledValueAsString, ",")
+	default:
+		result = []string{}
+	}
+
+	values := make([]string, 0, len(result))
+	for _, value := range result {
+		values = append(values, stringSlice.Normalize(value))
+	}
+	stringSlice.Value = values
+	return nil
 }
 
 func marshalStringToSlice(unmarshal func(interface{}) error) ([]string, error) {
@@ -83,7 +120,7 @@ func marshalStringToSlice(unmarshal func(interface{}) error) ([]string, error) {
 	switch {
 	case len(marshalledValuesAsSlice) > 0:
 		result = marshalledValuesAsSlice
-	case utils.IsNotBlank(marshalledValueAsString):
+	case !utils.IsBlank(marshalledValueAsString):
 		result = strings.Split(marshalledValueAsString, ",")
 	default:
 		result = []string{}

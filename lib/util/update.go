@@ -30,7 +30,7 @@ func UpdategoscanVersionToLatest(verbose bool) error {
 	m := &update.Manager{
 		Command: command,
 		Store: &githubUpdateStore.Store{
-			Owner:   "hktalent",
+			Owner:   "w3security",
 			Repo:    "goscan_Pro",
 			Version: Version,
 		},
