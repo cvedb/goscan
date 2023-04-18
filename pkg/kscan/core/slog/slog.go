@@ -2,16 +2,15 @@ package slog
 
 import (
 	"fmt"
+	"github.com/w3security/goscan/lib/util"
+	"github.com/w3security/goscan/pkg/kscan/lib/color"
+	"github.com/lcvvvv/gonmap/lib/chinese"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"runtime"
 	"strings"
-
-	"github.com/lcvvvv/gonmap/lib/chinese"
-	"github.com/w3security/goscan/lib/util"
-	"github.com/w3security/goscan/pkg/kscan/lib/color"
 )
 
 var splitStr = "> "
