@@ -1,19 +1,24 @@
-# .github/build/linux.yml
-
-# Build settings
+env:
+  - GO111MODULE=on
+#before:
+#  hooks:
+#    - go mod tidy
+project_name: Goscan
 builds:
-  - id: linux
-    goos: linux
-    goarch: amd64
-    main: ./cmd/myapp
-    binary: myapp
-    archive:
-      format: tar.gz
+  - id: Goscan-linux
+    ldflags:
+      - -s -w
+    binary: ppHttp
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
+      #  0 你再重新编译链接，那么 Go 链接器会使用 Go 版本的实现，这样你将得到一个没有动态链接的纯静态二进制程序
+    main: main.go
+    goos:
+      - linux
+    goarch:
+      - amd64
+archives:
+- format: zip
 
-# Release settings
-release:
-  github:
-    owner: w3security
-    name: goscan
+checksum:
+  name_template: "{{ .ProjectName }}-linux-checksums.txt"
