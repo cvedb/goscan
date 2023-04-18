@@ -5,7 +5,6 @@
 package zstd
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"io"
@@ -35,6 +34,7 @@ type Decoder struct {
 		br           readerWrapper
 		enabled      bool
 		inFrame      bool
+		dstBuf       []byte
 	}
 
 	frame *frameDec
@@ -187,21 +187,23 @@ func (d *Decoder) Reset(r io.Reader) error {
 	}
 
 	// If bytes buffer and < 5MB, do sync decoding anyway.
-	if bb, ok := r.(byter); ok && bb.Len() < 5<<20 {
+	if bb, ok := r.(byter); ok && bb.Len() < d.o.decodeBufsBelow && !d.o.limitToCap {
 		bb2 := bb
 		if debugDecoder {
 			println("*bytes.Buffer detected, doing sync decode, len:", bb.Len())
 		}
 		b := bb2.Bytes()
 		var dst []byte
-		if cap(d.current.b) > 0 {
-			dst = d.current.b
+		if cap(d.syncStream.dstBuf) > 0 {
+			dst = d.syncStream.dstBuf[:0]
 		}
 
-		dst, err := d.DecodeAll(b, dst[:0])
+		dst, err := d.DecodeAll(b, dst)
 		if err == nil {
 			err = io.EOF
 		}
+		// Save output buffer
+		d.syncStream.dstBuf = dst
 		d.current.b = dst
 		d.current.err = err
 		d.current.flushed = true
@@ -216,6 +218,7 @@ func (d *Decoder) Reset(r io.Reader) error {
 	d.current.err = nil
 	d.current.flushed = false
 	d.current.d = nil
+	d.syncStream.dstBuf = nil
 
 	// Ensure no-one else is still running...
 	d.streamWg.Wait()
@@ -455,7 +458,11 @@ func (d *Decoder) nextBlock(blocking bool) (ok bool) {
 		println("got", len(d.current.b), "bytes, error:", d.current.err, "data crc:", tmp)
 	}
 
-	if !d.o.ignoreChecksum && len(next.b) > 0 {
+	if d.o.ignoreChecksum {
+		return true
+	}
+
+	if len(next.b) > 0 {
 		n, err := d.current.crc.Write(next.b)
 		if err == nil {
 			if n != len(next.b) {
@@ -463,18 +470,16 @@ func (d *Decoder) nextBlock(blocking bool) (ok bool) {
 			}
 		}
 	}
-	if next.err == nil && next.d != nil && len(next.d.checkCRC) != 0 {
-		got := d.current.crc.Sum64()
-		var tmp [4]byte
-		binary.LittleEndian.PutUint32(tmp[:], uint32(got))
-		if !d.o.ignoreChecksum && !bytes.Equal(tmp[:], next.d.checkCRC) {
+	if next.err == nil && next.d != nil && next.d.hasCRC {
+		got := uint32(d.current.crc.Sum64())
+		if got != next.d.checkCRC {
 			if debugDecoder {
-				println("CRC Check Failed:", tmp[:], " (got) !=", next.d.checkCRC, "(on stream)")
+				printf("CRC Check Failed: %08x (got) != %08x (on stream)\n", got, next.d.checkCRC)
 			}
 			d.current.err = ErrCRCMismatch
 		} else {
 			if debugDecoder {
-				println("CRC ok", tmp[:])
+				printf("CRC ok %08x\n", got)
 			}
 		}
 	}
@@ -680,6 +685,7 @@ func (d *Decoder) startStreamDecoder(ctx context.Context, r io.Reader, output ch
 				if debugDecoder {
 					println("Async 1: new history, recent:", block.async.newHist.recentOffsets)
 				}
+				hist.reset()
 				hist.decoders = block.async.newHist.decoders
 				hist.recentOffsets = block.async.newHist.recentOffsets
 				hist.windowSize = block.async.newHist.windowSize
@@ -711,6 +717,7 @@ func (d *Decoder) startStreamDecoder(ctx context.Context, r io.Reader, output ch
 			seqExecute <- block
 		}
 		close(seqExecute)
+		hist.reset()
 	}()
 
 	var wg sync.WaitGroup
@@ -734,6 +741,7 @@ func (d *Decoder) startStreamDecoder(ctx context.Context, r io.Reader, output ch
 				if debugDecoder {
 					println("Async 2: new history")
 				}
+				hist.reset()
 				hist.windowSize = block.async.newHist.windowSize
 				hist.allocFrameBuffer = block.async.newHist.allocFrameBuffer
 				if block.async.newHist.dict != nil {
@@ -763,7 +771,7 @@ func (d *Decoder) startStreamDecoder(ctx context.Context, r io.Reader, output ch
 					if block.lowMem {
 						block.dst = make([]byte, block.RLESize)
 					} else {
-						block.dst = make([]byte, maxBlockSize)
+						block.dst = make([]byte, maxCompressedBlockSize)
 					}
 				}
 				block.dst = block.dst[:block.RLESize]
@@ -815,13 +823,14 @@ func (d *Decoder) startStreamDecoder(ctx context.Context, r io.Reader, output ch
 		if debugDecoder {
 			println("decoder goroutines finished")
 		}
+		hist.reset()
 	}()
 
+	var hist history
 decodeStream:
 	for {
-		var hist history
 		var hasErr bool
-
+		hist.reset()
 		decodeBlock := func(block *blockDec) {
 			if hasErr {
 				if block != nil {
@@ -910,18 +919,22 @@ decodeStream:
 				println("next block returned error:", err)
 			}
 			dec.err = err
-			dec.checkCRC = nil
+			dec.hasCRC = false
 			if dec.Last && frame.HasCheckSum && err == nil {
 				crc, err := frame.rawInput.readSmall(4)
-				if err != nil {
+				if len(crc) < 4 {
+					if err == nil {
+						err = io.ErrUnexpectedEOF
+
+					}
 					println("CRC missing?", err)
 					dec.err = err
-				}
-				var tmp [4]byte
-				copy(tmp[:], crc)
-				dec.checkCRC = tmp[:]
-				if debugDecoder {
-					println("found crc to check:", dec.checkCRC)
+				} else {
+					dec.checkCRC = binary.LittleEndian.Uint32(crc)
+					dec.hasCRC = true
+					if debugDecoder {
+						printf("found crc to check: %08x\n", dec.checkCRC)
+					}
 				}
 			}
 			err = dec.err
@@ -937,5 +950,6 @@ decodeStream:
 	}
 	close(seqDecode)
 	wg.Wait()
+	hist.reset()
 	d.frame.history.b = frameHistCache
 }

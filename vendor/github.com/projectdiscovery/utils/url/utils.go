@@ -1,22 +1,37 @@
 package urlutil
 
 import (
+	"os"
 	"strings"
+
+	errorutil "github.com/projectdiscovery/utils/errors"
+)
+
+const (
+	HTTP             = "http"
+	HTTPS            = "https"
+	SchemeSeparator  = "://"
+	DefaultHTTPPort  = "80"
+	DefaultHTTPSPort = "443"
 )
 
 // AutoMergeRelPaths merges two relative paths including parameters and returns final string
 func AutoMergeRelPaths(path1 string, path2 string) (string, error) {
-	u1, err1 := Parse(path1)
+	if path1 == "" || path2 == "" {
+		// no need to parse
+		return mergePaths(path1, path2), nil
+	}
+	u1, err1 := ParseRelativePath(path1, true)
 	if err1 != nil {
 		return "", err1
 	}
-	u2, err2 := Parse(path2)
+	u2, err2 := ParseRelativePath(path2, true)
 	if err2 != nil {
 		return "", err2
 	}
-	u1.MergePath(u2.Path, false)
 	u1.Params.Merge(u2.Params)
-	return u1.GetRelativePath(), nil
+	err := u1.MergePath(u2.Path, false)
+	return u1.GetRelativePath(), err
 }
 
 // mergePaths merges two relative paths
@@ -38,14 +53,12 @@ func mergePaths(elem1 string, elem2 string) string {
 	}
 
 	// Do not normalize but combibe paths same as path.join
-	/*
-		Merge Examples (Same as path.Join)
-		/blog   /admin => /blog/admin
-		/blog/wp /wp-content  => /blog/wp/wp-content
-		/blog/admin /blog/admin/profile => /blog/admin/profile
-		/blog/admin /blog => /blog/admin/blog
-		/blog /blog/ => /blog/
-	*/
+	// Merge Examples (Same as path.Join)
+	// /blog   /admin => /blog/admin
+	// /blog/wp /wp-content  => /blog/wp/wp-content
+	// /blog/admin /blog/admin/profile => /blog/admin/profile
+	// /blog/admin /blog => /blog/admin/blog
+	// /blog /blog/ => /blog/
 
 	if elem1 == elem2 {
 		return elem1
@@ -76,4 +89,10 @@ func shouldEscape(ss string) bool {
 		}
 	}
 	return false
+}
+
+func init() {
+	if os.Getenv("DEBUG") != "" {
+		errorutil.ShowStackTrace = true
+	}
 }
