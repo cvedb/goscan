@@ -3,19 +3,19 @@
 
 ## 结果持久化保存
 * 1、请自行先安装好docker（安装过程略）
-* 2、mkdir ~/MyWork;cd ~/MyWork
+* 2、mkdir ~/codespace;cd ~/codespace
   * 2.1 config目录及相关配置文件
   下载release程序运行，首次运行非自动生成config目录及相关配置文件，或者：  
   git clone http://github.com/w3security/goscan
   
-* 3、cd ~/MyWork/goscan
+* 3、cd ~/codespace/goscan
 * 4、运行下面的代码，自动获取docker，并启动docker服务，端口9200
 ```bash
 docker run --restart=always --ulimit nofile=65536:65536 -p 9200:9200 -p 9300:9300 -d --name es -v $PWD/logs:/usr/share/elasticsearch/logs -v $PWD/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml -v $PWD/config/jvm.options:/usr/share/elasticsearch/config/jvm.options  -v $PWD/data:/usr/share/elasticsearch/data  w3security/elasticsearch:7.16.2
 ```
 * 5、运行 初始化索引库
 ```
-~/MyWork/goscan/config/initEs.sh
+~/codespace/goscan/config/initEs.sh
 ```
 ## 启动结果存储到ES
 修改 config/config.json 中为true开启存储结果

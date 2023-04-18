@@ -1,6 +1,6 @@
-cd /workspaces /nuclei-templates
+cd $HOME/codespace/nuclei-templates
 git pull
-cd /workspaces/goscan
+cd $HOME/codespace/goscan/
 ls ../nuclei-templates|xargs -I % cp -rf ../nuclei-templates/% config/nuclei-templates/
 git add config/nuclei-templates pocs_yml/ymlFiles vendor
 git checkout vendor/github.com/projectdiscovery/nuclei/v2

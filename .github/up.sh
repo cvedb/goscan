@@ -5,16 +5,16 @@ upGit http-request-smuggler
 upGit request_smuggler
 upGit smuggler
 
-# cd $HOME/MyWork/nuclei-templates
+# cd $HOME/codespace/nuclei-templates
 # git fetch  origin master
 # git checkout 51pwn
 # git merge origin/master
 
 
-cd $HOME/MyWork/goscan
+cd $HOME/codespace/goscan
 cat ./go.mod|grep projectdiscovery|grep -E "subfinder|nuclei|wappalyzergo"|awk '{print $1}'|xargs -I % go get -u %
 
-cp -rf $HOME/MyWork/xray/pocs/*.yml $HOME/MyWork/goscan/pocs_yml/ymlFiles/
+cp -rf $HOME/codespace/xray/pocs/*.yml $HOME/codespace/goscan/pocs_yml/ymlFiles/
 ls ../nuclei-templates|xargs -I % cp -rf ../nuclei-templates/% config/nuclei-templates/
 echo "start 静态go.mod去除不相关依赖"
 go mod tidy

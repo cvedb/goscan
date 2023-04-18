@@ -31,7 +31,7 @@ func InitModle(x ...interface{}) {
 }
 
 // go - 交叉编译go-sqlite3 https://www.modb.pro/db/329524
-// ./tools/Check_CVE_2020_26134 -config="/Users/51pwn/MyWork/mybugbounty/allDomains.txt"
+// ./tools/Check_CVE_2020_26134 -config="/Users/51pwn/codespace/mybugbounty/allDomains.txt"
 // 获取Gorm db连接、操作对象
 func InitDb(dst ...interface{}) *gorm.DB {
 	if nil != dbCC {

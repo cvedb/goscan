@@ -113,7 +113,7 @@ noScan=true ./goscan -l list.txt -v
   * There will be time in the future to implement the golang version
     how to use?
 ```bash
-mkdir ~/MyWork/;cd ~/MyWork/;git clone https://github.com/w3security/log4j.scan
+mkdir ~/codespace/;cd ~/codespace/;git clone https://github.com/w3security/log4j.scan
 ````
 - Intelligently identify honeypots and skip Targets. This function is disabled by default. You can set EnableHoneyportDetection=true to enable
 - Highly customizable: allow to define your own dictionary through config/config.json configuration, or control more details, including but not limited to: nuclei, httpx, naabu, etc.

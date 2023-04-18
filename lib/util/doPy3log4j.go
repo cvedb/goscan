@@ -9,12 +9,12 @@ import (
 
 var log4jsv sync.Map
 
-// 1、检测 $HOME/MyWork/log4j.scan 存在就执行 python3 版本log4j检测
+// 1、检测 $HOME/codespace/log4j.scan 存在就执行 python3 版本log4j检测
 // 2、相同目标只执行一次，基于内存缓存
 // 3、只支持：https://github.com/w3security/log4j.scan 版本
 func DoLog4j(szUrl string) {
-	if 5 > len(szUrl) || !FileExists(UserHomeDir+"/MyWork/log4j.scan") {
-		//fmt.Println("DoLog4j: ", 5 > len(szUrl), !FileExists(UserHomeDir+"/MyWork/log4j.scan"))
+	if 5 > len(szUrl) || !FileExists(UserHomeDir+"/codespace/log4j.scan") {
+		//fmt.Println("DoLog4j: ", 5 > len(szUrl), !FileExists(UserHomeDir+"/codespace/log4j.scan"))
 		return
 	}
 	DoSyncFunc(func() {

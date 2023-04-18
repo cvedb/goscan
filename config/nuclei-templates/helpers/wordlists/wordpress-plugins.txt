@@ -49965,8 +49965,8 @@ mywebtonet-performancestats
 mywidget
 mywidget-recommendations
 mywiifriendscode
-myworks-design-signpost-sync
-myworks-woo-sync-for-quickbooks-online
+codespaces-design-signpost-sync
+codespaces-woo-sync-for-quickbooks-online
 myworld
 mywp-custom-patterns
 mywp-login-form
