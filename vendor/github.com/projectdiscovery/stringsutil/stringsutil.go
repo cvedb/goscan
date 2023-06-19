@@ -8,41 +8,30 @@ import (
 // https://www.dotnetperls.com/between-before-after-go
 
 // Between extracts the string between a and b
-// returns value as is and error if a or b are not found
-func Between(value string, a string, b string) (string, error) {
-	after, err := After(value, a)
-	if err != nil {
-		return value, err
-	}
-	final, err := Before(after, b)
-	if err != nil {
-		return value, err
-	}
-	return final, nil
+func Between(value string, a string, b string) string {
+	return Before(After(value, a), b)
 }
 
 // Before extracts the string before a from value
-// returns value as is and error if a is not found
-func Before(value string, a string) (string, error) {
+func Before(value string, a string) string {
 	pos := strings.Index(value, a)
 	if pos == -1 {
-		return value, fmt.Errorf("%s not found in %s", a, value)
+		return ""
 	}
-	return value[0:pos], nil
+	return value[0:pos]
 }
 
 // After extracts the string after a from value
-// returns value as is and error if a is not found
-func After(value string, a string) (string, error) {
+func After(value string, a string) string {
 	pos := strings.Index(value, a)
 	if pos == -1 {
-		return value, fmt.Errorf("%s not found in %s", a, value)
+		return ""
 	}
 	adjustedPos := pos + len(a)
 	if adjustedPos >= len(value) {
-		return value, fmt.Errorf("After: %s is not long enough to contain %s", value, a)
+		return ""
 	}
-	return value[adjustedPos:], nil
+	return value[adjustedPos:]
 }
 
 // HasPrefixAny checks if the string starts with any specified prefix
@@ -55,7 +44,7 @@ func HasPrefixAny(s string, prefixes ...string) bool {
 	return false
 }
 
-// HasSuffixAny checks if the string ends with any specified suffix
+// // HasSuffixAny checks if the string ends with any specified suffix
 func HasSuffixAny(s string, suffixes ...string) bool {
 	for _, suffix := range suffixes {
 		if strings.HasSuffix(s, suffix) {
@@ -73,7 +62,7 @@ func TrimPrefixAny(s string, prefixes ...string) string {
 	return s
 }
 
-// TrimSuffixAny trims all suffixes from string in order
+// TrimPrefixAny trims all suffixes from string in order
 func TrimSuffixAny(s string, suffixes ...string) string {
 	for _, suffix := range suffixes {
 		s = strings.TrimSuffix(s, suffix)
@@ -140,7 +129,7 @@ func ContainsAny(s string, ss ...string) bool {
 	return false
 }
 
-// EqualFoldAny returns true if s is equal to any specified substring
+// EqualFoldsAny returns true is s is equal to any specified substring
 func EqualFoldAny(s string, ss ...string) bool {
 	for _, sss := range ss {
 		if strings.EqualFold(s, sss) {
@@ -195,7 +184,7 @@ func SlideWithLength(s string, l int) chan string {
 
 // ReplaceAll returns a copy of the string s with all
 // instances of old incrementally replaced by new.
-func ReplaceAll(s, new string, olds ...string) string {
+func ReplaceAny(s, new string, olds ...string) string {
 	for _, old := range olds {
 		s = strings.ReplaceAll(s, old, new)
 	}

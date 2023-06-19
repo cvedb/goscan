@@ -815,8 +815,8 @@ github.com/projectdiscovery/folderutil
 # github.com/projectdiscovery/goconfig v0.0.0-20210804090219-f893ccd0c69c
 ## explicit; go 1.14
 github.com/projectdiscovery/goconfig
-# github.com/projectdiscovery/goflags v0.1.8
-## explicit; go 1.18
+# github.com/projectdiscovery/goflags v0.0.8-0.20220610073650-5d31a8c159e3
+## explicit; go 1.17
 github.com/projectdiscovery/goflags
 # github.com/projectdiscovery/gologger v1.1.4
 ## explicit; go 1.14
@@ -943,8 +943,8 @@ github.com/projectdiscovery/rawhttp/proxy
 # github.com/projectdiscovery/reflectutil v0.0.0-20210804085554-4d90952bf92f
 ## explicit; go 1.16
 github.com/projectdiscovery/reflectutil
-# github.com/projectdiscovery/retryabledns v1.0.21
-## explicit; go 1.18
+# github.com/projectdiscovery/retryabledns v1.0.13
+## explicit; go 1.14
 github.com/projectdiscovery/retryabledns
 github.com/projectdiscovery/retryabledns/doh
 github.com/projectdiscovery/retryabledns/hostsfile
@@ -954,7 +954,7 @@ github.com/projectdiscovery/retryablehttp-go
 # github.com/projectdiscovery/sliceutil v0.0.0-20220625085859-c3a4ecb669f4
 ## explicit; go 1.16
 github.com/projectdiscovery/sliceutil
-# github.com/projectdiscovery/stringsutil v0.0.2
+# github.com/projectdiscovery/stringsutil v0.0.0-20220612082425-0037ce9f89f3
 ## explicit; go 1.16
 github.com/projectdiscovery/stringsutil
 # github.com/projectdiscovery/subfinder/v2 v2.5.2
@@ -1012,11 +1012,7 @@ github.com/projectdiscovery/urlutil
 # github.com/projectdiscovery/utils v0.0.4-0.20230117135930-7371ae6a739d
 ## explicit; go 1.18
 github.com/projectdiscovery/utils/errors
-github.com/projectdiscovery/utils/file
-github.com/projectdiscovery/utils/ip
-github.com/projectdiscovery/utils/maps
 github.com/projectdiscovery/utils/reader
-github.com/projectdiscovery/utils/slice
 github.com/projectdiscovery/utils/strings
 github.com/projectdiscovery/utils/url
 # github.com/projectdiscovery/wappalyzergo v0.0.59
@@ -1320,7 +1316,6 @@ golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 golang.org/x/crypto/ssh/terminal
 # golang.org/x/exp v0.0.0-20221019170559-20944726eadf
 ## explicit; go 1.18
-golang.org/x/exp/maps
 golang.org/x/exp/rand
 # golang.org/x/mod v0.6.0
 ## explicit; go 1.17

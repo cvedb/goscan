@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	stringsutil "github.com/projectdiscovery/utils/strings"
+	"github.com/projectdiscovery/stringsutil"
 )
 
 const (
@@ -35,11 +35,7 @@ func (runtimeMap *RuntimeMap) Set(value string) error {
 	if runtimeMap.kv == nil {
 		runtimeMap.kv = make(map[string]interface{})
 	}
-	var k, v string
-	if idxSep := strings.Index(value, kvSep); idxSep > 0 {
-		k = value[:idxSep]
-		v = value[idxSep+1:]
-	}
+	k, v := stringsutil.Before(value, kvSep), stringsutil.After(value, kvSep)
 	// note:
 	// - inserting multiple times the same key will override the previous value
 	// - empty string is legitimate value

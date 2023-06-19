@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	fileutil "github.com/projectdiscovery/utils/file"
+	"github.com/projectdiscovery/fileutil"
 )
 
 var quotes = []rune{'"', '\'', '`'}
@@ -46,22 +46,13 @@ func ToString(slice []string) string {
 }
 
 type Options struct {
-	// IsFromFile determines if the values are from file
 	IsFromFile func(string) bool
-	// IsEmpty determines if the values are empty
-	IsEmpty func(string) bool
-	// Normalize the value (eg. removing trailing spaces)
-	Normalize func(string) string
-	// IsRaw determines if the value should be considered as a raw string
-	IsRaw func(string) bool
+	IsEmpty    func(string) bool
+	Normalize  func(string) string
 }
 
-// ToStringSlice converts a value to string slice based on options
-func ToStringSlice(value string, options Options) ([]string, error) {
+func toStringSlice(value string, options Options) ([]string, error) {
 	var result []string
-	if options.IsEmpty == nil && options.IsFromFile == nil && options.Normalize == nil {
-		return []string{value}, nil
-	}
 
 	addPartToResult := func(part string) {
 		if !options.IsEmpty(part) {
@@ -79,8 +70,6 @@ func ToStringSlice(value string, options Options) ([]string, error) {
 		for line := range linesChan {
 			addPartToResult(line)
 		}
-	} else if options.IsRaw != nil && options.IsRaw(value) {
-		addPartToResult(value)
 	} else {
 		index := 0
 		for index < len(value) {
@@ -108,15 +97,12 @@ func ToStringSlice(value string, options Options) ([]string, error) {
 			}
 		}
 	}
+
 	return result, nil
 }
 
 func isEmpty(s string) bool {
 	return strings.TrimSpace(s) == ""
-}
-
-func isFromFile(_ string) bool {
-	return true
 }
 
 func normalizeTrailingParts(s string) string {
